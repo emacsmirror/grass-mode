@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: params
+# key:  ;
+# binding: C-c TAB
+# --
+`(grass-get-parameter)`=$0
