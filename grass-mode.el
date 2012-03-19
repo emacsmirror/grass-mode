@@ -18,6 +18,24 @@
 ;; along with grass-mode (see the file COPYING).  If not, see
 ;; <http://www.gnu.org/licenses/>. 
 
+;;;;;;;;;;;;;;;;;;
+;; Dependencies ;;
+;;;;;;;;;;;;;;;;;;
+
+;; Need cl.el for mapcar* and remove-if-not. Should add local versions
+;; of these so we don't need cl!
+(require 'cl)  
+(require 'shell)
+
+;; (defun grass-mapcar* (f &rest xs)
+;;   "MAPCAR for multiple sequences.
+;; Available in cl.el, but requiring cl.el is bad form."
+;;   (if (not (memq nil xs))
+;;     (cons (apply f (mapcar 'car xs))
+;;       (apply 'mapcar* f (mapcar 'cdr xs)))))
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization Variables ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -31,6 +49,8 @@
 (defvar grass-help-w3m nil 
   "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
 browse-url. w3m must be installed separately in your Emacs to use this!")
+
+(if grass-help-w3m (require 'w3m))
 
 (defvar grass-default-location nil
   "The default starting location.")
@@ -72,22 +92,6 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
       ; The list of Grass html help files
       grass-help nil)          ; The buffer where the grass help is found
 
-
-;;;;;;;;;;;;;;;;;;
-;; Dependencies ;;
-;;;;;;;;;;;;;;;;;;
-
-;;(require 'cl)  ;; don't use this unless we really need it!
-(require 'shell)
-(if grass-help-w3m (require 'w3m))
-
-(defun grass-mapcar* (f &rest xs)
-  "MAPCAR for multiple sequences.
-Available in cl.el, but requiring cl.el is bad form."
-  (if (not (memq nil xs))
-    (cons (apply f (mapcar 'car xs))
-      (apply 'mapcar* f (mapcar 'cdr xs)))))
-
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Initializations ;;
 ;;;;;;;;;;;;;;;;;;;;;
@@ -101,7 +105,7 @@ Available in cl.el, but requiring cl.el is bad form."
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
       (setq grass-location-list
-            (grass-mapcar* #'(lambda (x y) (cons x y))
+            (mapcar* #'(lambda (x y) (cons x y))
                            location-names location-dirs)))))
 
 (defun grass-mapset-list-init ()
