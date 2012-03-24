@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: types
+# key: type=
+# binding: direct-keybinding
+# --
+type=${1:$$(yas/choose-value '("point" "line" "boundary" "centroid" "area" "face"))} $0

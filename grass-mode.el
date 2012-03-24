@@ -181,6 +181,7 @@ already active."
   ;; initializations
   (grass-location-list-init)
   (setenv "GRASS_PAGER" "cat")
+  (setenv "GRASS_VERBOSE" "0")
   (add-to-list 'exec-path (concat gisbase "/bin") t)
   (add-to-list 'exec-path (concat gisbase "/scripts") t)
 
@@ -203,8 +204,12 @@ already active."
     (grass-mapset-list-init)
     (setq grass-mapset (grass-get-mapset))
     (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
-                                       (concat (cdr grass-location) "/"
-                                               grass-mapset))))
+                                       (concat  (file-name-as-directory
+                                                 (cdr grass-location)) 
+                                                grass-mapset ))))
+    ;; (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
+    ;;                                    (concat (cdr grass-location) "/"
+    ;;                                            grass-mapset))))
   (switch-to-buffer (process-buffer grass-process))
   (grass-update-prompt)
   (igrass-mode))

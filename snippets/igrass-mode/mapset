@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: mapsets
+# key: mapset=
+# binding: direct-keybinding
+# --
+mapset=`(grass-get-mapset)` $0

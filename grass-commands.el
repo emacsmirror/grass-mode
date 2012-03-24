@@ -1,4 +1,9 @@
-(defvar grass-command-arguments 
+
+
+(setq grass-command-arguments 
+      ;; Contains all the arguments for each Grass command, for use with
+      ;; completion functions. Not complete, working on automating the
+      ;; extraction of this info from the help files.")
   '(("d.vect" . 
      (("map" "Name of input vector map")
       ("display" "Display")
@@ -41,10 +46,17 @@
      (("start" "Name of graphics monitor to start")
       ("stop" "Name of graphics monitor to stop")
       ("select" "Name of graphics monitor to select")
-      ("unlock" "Name of graphics monitor to unlock"))))
-  "Contains all the arguments for each Grass command, for use with
-  completion functions. Not complete, working on automating the
-  extraction of this info from the help files.")
+      ("unlock" "Name of graphics monitor to unlock")))
+    ("g.mapset" .
+     (("mapset" "Name of mapset where to switch")
+      ("location" "Location name (not location path)")
+      ("gisdbase" 
+       "GIS data directory (full path to the directory where the new location is)"))))) 
+
+("g.mapset"
+ ("mapset" "Name of mapset where to switch")
+ ("location" "Location name (not location path)")
+ ("gisdbase" "GIS data directory (full path to the directory where the new location is)"))
 
 
 (defvar grass-commands 
@@ -60,20 +72,22 @@
   "d.title" "d.vect.chart" "d.vect" "d.vect.thematic" "d.what.rast"
   "d.what.vect" "d.where" "d.zoom"))
 
+
+
 ;; (setq font-lock-keywords-case-fold-search nil)
 
 
 
-;; (defun grass-process-help-file (start end)
-;;   "Takes the parameter list from a help file and converts it to an alist.
-;; Not intended for users, this is a helper function for building the
-;; completion lists "
-;;   (interactive "r")
-;;   (save-excursion
-;;     (narrow-to-region start end)
-;;     (beginning-of-buffer)
-;;     (replace-regexp "^\\(\\(?:\\w\\|_\\)+\\)=[^\n]*\n    \\(.*\\)"
-;;                     "(\"\\1\" \"\\2\")")
-;;     (widen)))
+(defun grass-process-help-file (start end)
+  "Takes the parameter list from a help file and converts it to an alist.
+Not intended for users, this is a helper function for building the
+completion lists "
+  (interactive "r")
+  (save-excursion
+    (narrow-to-region start end)
+    (beginning-of-buffer)
+    (replace-regexp "^\\(\\(?:\\w\\|_\\)+\\)=[^\n]*\n    \\(.*\\)"
+                    "(\"\\1\" \"\\2\")")
+    (widen)))
 
 (provide 'grass-commands)
