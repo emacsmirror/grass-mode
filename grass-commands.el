@@ -53,12 +53,6 @@
       ("gisdbase" 
        "GIS data directory (full path to the directory where the new location is)"))))) 
 
-("g.mapset"
- ("mapset" "Name of mapset where to switch")
- ("location" "Location name (not location path)")
- ("gisdbase" "GIS data directory (full path to the directory where the new location is)"))
-
-
 (defvar grass-commands 
   '("d.ask" "d.barscale" "d.colorlist" "d.colors" "d.colortable"
   "d.correlate" "d.erase" "d.extend" "d.extract" "d.font" "d.frame"
