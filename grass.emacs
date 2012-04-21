@@ -97,5 +97,5 @@
 
 ;; All that's left is to load the mode:
 
-(add-to-list 'load-path "~/.emacs.d/grass-mode")
+(add-to-list 'load-path "~/.emacs.d/grass-mode.el")
 (require 'grass-mode)

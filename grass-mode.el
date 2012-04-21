@@ -62,7 +62,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   "The location of the Grass html documentation.")
 
 ;; Should maybe use a snippet bundle instead?
-(defvar grass-snippets "~/.emacs.d/grass-mode/snippets"
+(defvar grass-snippets "~/.emacs.d/grass-mode.el/snippets"
   "Directory for all Grass-specific yas templates.")
 
 (defvar grass-prompt "GRASS ($LOCATION_NAME) \\w > "
