@@ -256,6 +256,13 @@ y or v will return the vector function, n or r the raster function."
                :exclusive 'no))
         (t nil)))
 
+(defun sgrass-complete-commands ()
+  (save-excursion
+    (let ((start (progn (skip-syntax-backward "^ ")
+                        (point)))
+          (end (progn (skip-syntax-forward "^ ")
+                      (point))))
+      (list start end grass-commands :exclusive 'no))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
@@ -416,11 +423,13 @@ current prompt, rather than on the next line."
 process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
 
 \\{sgrass-mode-map}"
-  (yas/load-directory grass-snippets)
   (define-key sgrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key sgrass-mode-map (kbd "C-c C-n") 'grass-send-line-and-step)
   (define-key sgrass-mode-map (kbd "C-c C-l") 'grass-change-location)
-  (define-key sgrass-mode-map (kbd "C-c C-r") 'grass-send-region))
+  (define-key sgrass-mode-map (kbd "C-c C-r") 'grass-send-region)
+  (define-key sgrass-mode-map "\t" 'completion-at-point)
+  (add-hook 'completion-at-point-functions 'sgrass-complete-commands nil t)
+  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t))
 
 
 (provide 'grass-mode)
