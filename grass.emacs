@@ -1,31 +1,25 @@
+;; Quick start for the impatient:
+;; If the following default locations don't make sense on your system, uncomment the
+;; appropriate line and edit as necessary:
+
+;; (setq grass-doc-dir "/path/to/grass/help/docs")
+;; (setq grassdata "~/path/to/grassdata")
+;; (setq gisbase "/usr/lib/grass64")  ;; the grass executables 
+
+;; Add the following to your .emacs, making sure that the load-path is pointed to the
+;; right directory on your system (wherever you unpacked grass-mode)
+
+(add-to-list 'load-path "~/.emacs.d/grass-mode.el")
+(require 'grass-mode)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Details for the less impatient: ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; This file contains the minimum code necessary to get grass-mode
 ;; running on your system. I use it for testing without running the rest
 ;; of the code in my .emacs (i.e., emacs -Q -l grass.emacs). The
 ;; comments should also serve as an installation guide.
-
-;;;;;;;;;;;;;;;;;
-;; yas/snippet ;;
-;;;;;;;;;;;;;;;;;
-
-;; You need to have yasnippet installed. As part of that process, you
-;; should already have 'required' that package, so the following lines
-;; (or something similar) should appear somewhere in your .emacs by now:
-
-(add-to-list 'load-path "~/.emacs.d/yasnippet/")
-(require 'yasnippet) 
-(yas/load-directory "~/.emacs.d/yasnippet/snippets/")
-(yas/initialize)
-
-;; Additional yas/snippet codes is required to load snippets for other
-;; modes, but I don't include it in this file.
-
-;; If yas/snippet works for you, you need to let Emacs know where you've
-;; put the grass-mode snippets directory. By default, it will be in
-;; ~/.emacs.d/grass-mode/snippets. If that's where you've put it,
-;; no further codes is necessary. If not, modify and uncomment the
-;; following line:
-
-;; (setq grass-snippets "~/path/to/grass-mode/snippets")
 
 ;;;;;;;;;;;;;;;;
 ;; Help-files ;;
@@ -91,11 +85,3 @@
 ;; grass-default-mapset
 ;; grass-prompt
 
-;;;;;;;;;;;;;;;;;;;;;;;;
-;; Loading grass-mode ;;
-;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; All that's left is to load the mode:
-
-(add-to-list 'load-path "~/.emacs.d/grass-mode.el")
-(require 'grass-mode)
