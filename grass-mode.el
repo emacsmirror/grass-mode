@@ -207,13 +207,13 @@ y or v will return the vector function, n or r the raster function."
       (while (progn (beginning-of-line)
                     (looking-at grass-prompt-2))
         (previous-line))
-      (comint-bol)
+      (bol)
       (re-search-forward "\\(\\S +\\)\\s ?" nil t)
       (if (and (>= pt (match-beginning 1))
                (<= pt (match-end 1)))
           () 
         ;; still entering the initial command, so pass completion on to
-        ;; comint-completion-at-point by returning nil here
+        ;; completion-at-point by returning nil here
         (let ((command (match-string-no-properties 1)))
           (when (member* command grass-commands :test 'string= :key 'car)
             (goto-char pt)
@@ -258,9 +258,11 @@ y or v will return the vector function, n or r the raster function."
 
 (defun sgrass-complete-commands ()
   (save-excursion
-    (let ((start (progn (skip-syntax-backward "^ ")
+    (let* ((bol (save-excursion (beginning-of-line) (point)))
+          (eol (save-excursion (end-of-line) (point)))
+          (start (progn (skip-syntax-backward "^ " bol)
                         (point)))
-          (end (progn (skip-syntax-forward "^ ")
+          (end (progn (skip-syntax-forward "^ " eol)
                       (point))))
       (list start end grass-commands :exclusive 'no))))
 
@@ -323,6 +325,7 @@ the current line.
 
 \\{igrass-mode-map}"
   (setq comint-use-prompt-regexp t)
+  (setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location))
