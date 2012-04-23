@@ -68,6 +68,9 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
 (defvar grass-prompt "GRASS ($LOCATION_NAME) \\w > "
   "String to format the Grass prompt.")
 
+(defvar grass-prompt-2 "> "
+  "String to format the Grass continuation-line prompt, PS2.")
+
 (defvar gisbase "/usr/lib/grass64"
   "The top-level directory that includes the bin and scripts directories for grass.")
 
@@ -96,6 +99,33 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
 ;; Initializations ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
+(defun grass-init-command-list ()
+  "Parses the help files, extracting a list of commands and their parameters"
+  (setq grass-commands nil)
+
+  (mapc #'(lambda (x)
+            (find-file (cdr x))
+            (beginning-of-buffer)
+            (when (search-forward "<h3>Parameters:</h3>\n<DL>" nil t)
+              (push (cons 
+                     (car x)
+                     (let ((start (point))
+                           (end (search-forward "/DL"))
+                           result-list)
+                       (goto-char start)
+                       (while (search-forward-regexp "<b>\\(.*\\)</b>" end t)
+                         (let ((parameter (match-string-no-properties 1))
+                               (doc-string (progn 
+                                             (search-forward-regexp "<DD>\\(.*\\)</DD>" end t)
+                                             (match-string-no-properties 1))))
+                           (push (list parameter doc-string)
+                                 result-list)))
+                       result-list))
+                    grass-commands))
+            (kill-buffer))
+        grass-doc-table))
+
+
 (defun grass-location-list-init ()
   "Initialize the alist of grass locations"
   (when grassdata
@@ -106,7 +136,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
             (mapcar 'file-name-nondirectory location-dirs)))
       (setq grass-location-list
             (mapcar* #'(lambda (x y) (cons x y))
-                           location-names location-dirs)))))
+                     location-names location-dirs)))))
 
 (defun grass-mapset-list-init ()
   "Initialize the alist of mapsets for the current grass location."
@@ -167,7 +197,7 @@ y or v will return the vector function, n or r the raster function."
 (defun grass-get-parameter ()
   (interactive)
   (completing-read "Parameter: "
-                   (cdr (assoc (grass-current-command) grass-command-arguments))))
+                   (cdr (assoc (grass-current-command) grass-commands))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
@@ -185,8 +215,6 @@ already active."
   (add-to-list 'exec-path (concat gisbase "/bin") t)
   (add-to-list 'exec-path (concat gisbase "/scripts") t)
 
-  (require 'grass-commands)
-
   (setq ansi-color-for-comint-mode nil) 
   ;; This shouldn't be necessary, but it eliminates the "Marker does not
   ;; point anywhere" issue in the inferior process window. 
@@ -195,6 +223,9 @@ already active."
             (push (cons (substring x 0 -5)
                         (concat grass-doc-dir x)) grass-doc-table))
         grass-doc-files)
+
+  (require 'grass-commands)
+
   (yas/load-directory grass-snippets)
 
   ;; Start a new process, or switch to the existing one
@@ -211,6 +242,9 @@ already active."
     ;;                                    (concat (cdr grass-location) "/"
     ;;                                            grass-mapset))))
   (switch-to-buffer (process-buffer grass-process))
+  (comint-send-string grass-process
+                      (format "eval `g.gisenv`\nexport PS2=\"%s\"\n"
+                              grass-prompt-2))
   (grass-update-prompt)
   (igrass-mode))
 
