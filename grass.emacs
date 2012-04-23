@@ -9,7 +9,7 @@
 ;; Add the following to your .emacs, making sure that the load-path is pointed to the
 ;; right directory on your system (wherever you unpacked grass-mode)
 
-(add-to-list 'load-path "~/.emacs.d/grass-mode.el")
+(add-to-list 'load-path "~/.emacs.d/grass-mode")
 (require 'grass-mode)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
