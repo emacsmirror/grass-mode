@@ -1,6 +1,0 @@
-# -*- mode: snippet -*-
-# name: locations
-# key: location=
-# binding: direct-keybinding
-# --
-location=`(car (grass-get-location))` $0

@@ -1,7 +1,0 @@
-# -*- mode: snippet -*-
-# name: vectors
-# key: vect=
-# binding: direct-keybinding
-# --
-vect=`(grass-get-vector)` $0
-

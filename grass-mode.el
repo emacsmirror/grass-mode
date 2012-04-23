@@ -62,8 +62,8 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   "The location of the Grass html documentation.")
 
 ;; Should maybe use a snippet bundle instead?
-(defvar grass-snippets "~/.emacs.d/grass-mode.el/snippets"
-  "Directory for all Grass-specific yas templates.")
+;;(defvar grass-snippets "~/.emacs.d/grass-mode.el/snippets"
+;;  "Directory for all Grass-specific yas templates.")
 
 (defvar grass-prompt "GRASS ($LOCATION_NAME) \\w > "
   "String to format the Grass prompt.")
@@ -203,23 +203,59 @@ y or v will return the vector function, n or r the raster function."
   (interactive)
   (let ((pt (point))
         start end)
-    (save-excursion
+    (save-excursion                     ;; backup to beginning of multi-line command
       (while (progn (beginning-of-line)
                     (looking-at grass-prompt-2))
         (previous-line))
       (comint-bol)
-      (re-search-forward "\\(\\S +\\)\\s ?")
+      (re-search-forward "\\(\\S +\\)\\s ?" nil t)
       (if (and (>= pt (match-beginning 1))
                (<= pt (match-end 1)))
-          () ;; pass completion on to comint-completion-at-point
+          () 
+        ;; still entering the initial command, so pass completion on to
+        ;; comint-completion-at-point by returning nil here
         (let ((command (match-string-no-properties 1)))
           (when (member* command grass-commands :test 'string= :key 'car)
             (goto-char pt)
             (skip-syntax-backward "^ ")
             (setq start (point))
-            (re-search-forward "\\S *")
+            (skip-syntax-forward "^ ")
             (setq end (point))
-            (list start end (cdr (assoc command grass-commands)) :exclusive 'no)))))))
+            (if (not (string-match "=" (buffer-substring start end)))
+                (list start end (cdr (assoc command grass-commands)) :exclusive 'no)
+              (grass-complete-parameters
+               command 
+               (buffer-substring start (search-backward "="))
+               (progn
+                 (goto-char pt)
+                 (re-search-backward "=\\|,")
+                 (forward-char)
+                 (point))
+               (progn (skip-syntax-forward "^ ") (point))))))))))
+
+(defun grass-complete-parameters (command parameter start end)
+  (message (concat command " " parameter " " (number-to-string start) " "
+                   (number-to-string end)))
+  (message (substring command 0 2))
+  (cond ((or (string= parameter "vect")  ;; asking for a vector explicitly
+            (and (or (string-match "vect" command) ;; asking for a map in a vector command
+                     (string= (substring command 0 2) "v."))
+                 (or (string= parameter "map")
+                     (string= parameter "input"))))
+         (list start end (grass-vector-maps) :exclusive 'no))
+        ((or (string= parameter "rast")  ;; asking for a raster explicitly
+             (and (or (string-match "rast" command) ;; asking for a map in a raster command
+                      (string= (substring command 0 2) "r."))
+                 (or (string= parameter "map")
+                     (string= parameter "input"))))
+         (list start end (grass-raster-maps) :exclusive 'no))
+        ((string= parameter "location")
+         (list start end grass-location-list :exclusive 'no))
+        ((string= parameter "type")
+         (list start end '("point" "line" "boundary" "centroid" "area" "face") 
+               :exclusive 'no))
+        (t nil)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
@@ -248,7 +284,7 @@ already active."
 
   (require 'grass-commands)
 
-  (yas/load-directory grass-snippets)
+;;  (yas/load-directory grass-snippets)
 
   ;; Start a new process, or switch to the existing one
   (unless (and (processp grass-process)
@@ -268,7 +304,9 @@ already active."
                       (format "eval `g.gisenv`\nexport PS2=\"%s\"\n"
                               grass-prompt-2))
   (grass-update-prompt)
-  (igrass-mode))
+  (igrass-mode)
+  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
+  (setq comint-use-prompt-regexp t))
 
 (define-derived-mode igrass-mode shell-mode "igrass"
   "Major mode for interacting with a Grass in an inferior
@@ -278,7 +316,6 @@ the current line.
 
 \\{igrass-mode-map}"
   (setq comint-use-prompt-regexp t)
-  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location))

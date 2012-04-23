@@ -1,7 +1,0 @@
-# -*- mode: snippet -*-
-# name: vectors
-# key: rast=
-# binding: direct-keybinding
-# --
-rast=`(grass-get-raster)` $0
-
