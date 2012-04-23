@@ -199,6 +199,28 @@ y or v will return the vector function, n or r the raster function."
   (completing-read "Parameter: "
                    (cdr (assoc (grass-current-command) grass-commands))))
 
+(defun grass-completion-at-point ()
+  (interactive)
+  (let ((pt (point))
+        start end)
+    (save-excursion
+      (while (progn (beginning-of-line)
+                    (looking-at grass-prompt-2))
+        (previous-line))
+      (comint-bol)
+      (re-search-forward "\\(\\S +\\)\\s ?")
+      (if (and (>= pt (match-beginning 1))
+               (<= pt (match-end 1)))
+          () ;; pass completion on to comint-completion-at-point
+        (let ((command (match-string-no-properties 1)))
+          (when (member* command grass-commands :test 'string= :key 'car)
+            (goto-char pt)
+            (skip-syntax-backward "^ ")
+            (setq start (point))
+            (re-search-forward "\\S *")
+            (setq end (point))
+            (list start end (cdr (assoc command grass-commands)) :exclusive 'no)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -256,6 +278,7 @@ the current line.
 
 \\{igrass-mode-map}"
   (setq comint-use-prompt-regexp t)
+  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location))

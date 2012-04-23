@@ -1,6 +1,0 @@
-# -*- mode: snippet -*-
-# name: vectors
-# key: map=
-# binding: direct-keybinding
-# --
-map=`(grass-get-map)` $0
