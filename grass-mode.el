@@ -138,14 +138,14 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
             (mapcar* #'(lambda (x y) (cons x y))
                      location-names location-dirs)))))
 
-(defun grass-mapset-list-init ()
-  "Initialize the alist of mapsets for the current grass location."
-  (when grass-location
-    (setq grass-mapset-list 
-          (mapcar 'file-name-nondirectory
-                  (remove-if-not 'file-directory-p
-                                 (directory-files
-                                  (cdr grass-location) t "^[^.]"))))))
+;; (defun grass-mapset-list-init ()
+;;   "Initialize the alist of mapsets for the current grass location."
+;;   (when grass-location
+;;     (setq grass-mapset-list 
+;;           (mapcar 'file-name-nondirectory
+;;                   (remove-if-not 'file-directory-p
+;;                                  (directory-files
+;;                                   (cdr grass-location) t "^[^.]"))))))
 
 (defun grass-get-location ()
   "Prompt the user for the location."
@@ -154,10 +154,20 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
           grass-location-list nil t nil nil grass-default-location)
          grass-location-list))
 
+(defun grass-mapset-list (&optional location)
+  "List the mapsets for a location, defaulting to the current location."
+  (let ((loc (if location
+                 location
+               grass-location)))
+    (mapcar 'file-name-nondirectory
+            (remove-if-not 'file-directory-p
+                           (directory-files
+                            (cdr loc) t "^[^.]")))))
+
 (defun grass-get-mapset ()
-  "Prompt the user for the mapset."
+  "Prompt the user for the mapset for the current location."
   (completing-read (format "Grass mapset (%s): " grass-default-mapset)
-                   grass-mapset-list nil t nil nil grass-default-mapset))
+                   (grass-mapset-list) nil t nil nil grass-default-mapset))
 
 (defun grass-get-vector ()
   "Prompt the user for a vector map."
@@ -207,7 +217,7 @@ y or v will return the vector function, n or r the raster function."
       (while (progn (beginning-of-line)
                     (looking-at grass-prompt-2))
         (previous-line))
-      (bol)
+      (comint-bol)
       (re-search-forward "\\(\\S +\\)\\s ?" nil t)
       (if (and (>= pt (match-beginning 1))
                (<= pt (match-end 1)))
@@ -234,27 +244,35 @@ y or v will return the vector function, n or r the raster function."
                (progn (skip-syntax-forward "^ ") (point))))))))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (message (concat command " " parameter " " (number-to-string start) " "
-                   (number-to-string end)))
-  (message (substring command 0 2))
-  (cond ((or (string= parameter "vect")  ;; asking for a vector explicitly
-            (and (or (string-match "vect" command) ;; asking for a map in a vector command
-                     (string= (substring command 0 2) "v."))
-                 (or (string= parameter "map")
-                     (string= parameter "input"))))
-         (list start end (grass-vector-maps) :exclusive 'no))
-        ((or (string= parameter "rast")  ;; asking for a raster explicitly
-             (and (or (string-match "rast" command) ;; asking for a map in a raster command
-                      (string= (substring command 0 2) "r."))
-                 (or (string= parameter "map")
-                     (string= parameter "input"))))
-         (list start end (grass-raster-maps) :exclusive 'no))
-        ((string= parameter "location")
-         (list start end grass-location-list :exclusive 'no))
-        ((string= parameter "type")
-         (list start end '("point" "line" "boundary" "centroid" "area" "face") 
-               :exclusive 'no))
-        (t nil)))
+  (let ((collection (third (assoc parameter (assoc command grass-commands)))))
+    (list start end 
+          (if (functionp collection)
+              (funcall collection)
+            collection) 
+          :exclusive 'no)))
+
+;; (defun grass-complete-parameters (command parameter start end)
+;;   (message (concat command " " parameter " " (number-to-string start) " "
+;;                    (number-to-string end)))
+;;   (message (substring command 0 2))
+;;   (cond ((or (string= parameter "vect")  ;; asking for a vector explicitly
+;;             (and (or (string-match "vect" command) ;; asking for a map in a vector command
+;;                      (string= (substring command 0 2) "v."))
+;;                  (or (string= parameter "map")
+;;                      (string= parameter "input"))))
+;;          (list start end (grass-vector-maps) :exclusive 'no))
+;;         ((or (string= parameter "rast")  ;; asking for a raster explicitly
+;;              (and (or (string-match "rast" command) ;; asking for a map in a raster command
+;;                       (string= (substring command 0 2) "r."))
+;;                  (or (string= parameter "map")
+;;                      (string= parameter "input"))))
+;;          (list start end (grass-raster-maps) :exclusive 'no))
+;;         ((string= parameter "location")
+;;          (list start end grass-location-list :exclusive 'no))
+;;         ((string= parameter "type")
+;;          (list start end '("point" "line" "boundary" "centroid" "area" "face") 
+;;                :exclusive 'no))
+;;         (t nil)))
 
 (defun sgrass-complete-commands ()
   (save-excursion
@@ -299,7 +317,6 @@ already active."
   (unless (and (processp grass-process)
                (buffer-name (process-buffer grass-process)))
     (setq grass-location (grass-get-location))
-    (grass-mapset-list-init)
     (setq grass-mapset (grass-get-mapset))
     (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
                                        (concat  (file-name-as-directory
@@ -366,12 +383,14 @@ the current line.
                               grass-prompt))
   (grass-prep-process))
 
-(defun grass-vector-maps ()
-"Returns a list of all the vector maps in the current location and
-mapset." 
-  (let ((map-dir (concat (cdr grass-location) "/" grass-mapset)))
-    (if (member "vector" (directory-files map-dir))
-        (directory-files (concat map-dir "/" "vector") nil "^[^.]"))))
+(defun grass-vector-maps (&optional location mapset)
+  "Returns a list of all the vector maps in location and mapset.
+Defaults to the current location and mapset."
+  (let ((loc (if location location grass-location))
+        (mapst (if mapset mapset grass-mapset)))
+    (let ((map-dir (concat (cdr loc) "/" mapst)))
+      (if (member "vector" (directory-files map-dir))
+          (directory-files (concat map-dir "/" "vector") nil "^[^.]")))))
 
 (defun grass-raster-maps ()
   "Returns a list of all the raster maps in the current location and
@@ -379,6 +398,12 @@ mapset."
   (let ((map-dir (concat (cdr grass-location) "/" grass-mapset)))
     (if (member "cell" (directory-files map-dir))
         (directory-files (concat map-dir "/" "cell") nil "^[^.]"))))
+
+(defun grass-foreign-vectors()
+"Returns a list of all the vector maps in a different location and mapset"
+ (let ((f-loc (grass-get-location))
+       (f-map (grass-get-mapset)))
+   (grass-vector-maps f-loc f-map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;              sGrass                       ;;
