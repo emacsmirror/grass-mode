@@ -80,13 +80,13 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; This adds v and r to the list of possible answers for y-or-n-p
-(setq grass-query-replace-map (make-sparse-keymap))
-(set-keymap-parent grass-query-replace-map query-replace-map)
-(define-key grass-query-replace-map "v" 'act)
-(define-key grass-query-replace-map "r" 'skip)
+;; (setq grass-query-replace-map (make-sparse-keymap))
+;; (set-keymap-parent grass-query-replace-map query-replace-map)
+;; (define-key grass-query-replace-map "v" 'act)
+;; (define-key grass-query-replace-map "r" 'skip)
 
-(setq grass-location-list nil ; The list of grass locations known to grass-mode.el
-      grass-location nil      ; The currently active grass location
+;; (setq grass-location-list nil ; The list of grass locations known to grass-mode.el
+(setq grass-location nil      ; The currently active grass location
       grass-process nil       ; The active Grass process
       grass-mapset nil        ; The currently active grass mapset
       grass-doc-files 
@@ -106,7 +106,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   (mapc #'(lambda (x)
             (find-file (cdr x))
             (beginning-of-buffer)
-            (when (search-forward "<h3>Parameters:</h3>\n<DL>" nil t)
+            (if (search-forward "<h3>Parameters:</h3>\n<DL>" nil t)
               (push (cons 
                      (car x)
                      (let ((start (point))
@@ -121,22 +121,34 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
                            (push (list parameter doc-string)
                                  result-list)))
                        result-list))
-                    grass-commands))
+                    grass-commands)
+              (push (list (car x)) grass-commands))
             (kill-buffer))
         grass-doc-table))
 
 
-(defun grass-location-list-init ()
-  "Initialize the alist of grass locations"
+;; (defun grass-location-list-init ()
+;;   "Initialize the alist of grass locations"
+;;   (when grassdata
+;;     (let* ((location-dirs 
+;;             (remove-if-not 'file-directory-p
+;;                            (directory-files grassdata t "^[^.]")))
+;;            (location-names
+;;             (mapcar 'file-name-nondirectory location-dirs)))
+;;       (setq grass-location-list
+;;             (mapcar* #'(lambda (x y) (cons x y))
+;;                      location-names location-dirs)))))
+
+(defun grass-location-list ()
+  "Return an alist of grass locations"
   (when grassdata
     (let* ((location-dirs 
             (remove-if-not 'file-directory-p
                            (directory-files grassdata t "^[^.]")))
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
-      (setq grass-location-list
-            (mapcar* #'(lambda (x y) (cons x y))
-                     location-names location-dirs)))))
+      (mapcar* #'(lambda (x y) (cons x y))
+                     location-names location-dirs))))
 
 ;; (defun grass-mapset-list-init ()
 ;;   "Initialize the alist of mapsets for the current grass location."
@@ -151,8 +163,8 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   "Prompt the user for the location."
   (assoc (completing-read
           (format "Grass location (%s): " grass-default-location)
-          grass-location-list nil t nil nil grass-default-location)
-         grass-location-list))
+          (grass-location-list) nil t nil nil grass-default-location)
+         (grass-location-list)))
 
 (defun grass-mapset-list (&optional location)
   "List the mapsets for a location, defaulting to the current location."
@@ -221,9 +233,17 @@ y or v will return the vector function, n or r the raster function."
       (re-search-forward "\\(\\S +\\)\\s ?" nil t)
       (if (and (>= pt (match-beginning 1))
                (<= pt (match-end 1)))
-          () 
-        ;; still entering the initial command, so pass completion on to
-        ;; completion-at-point by returning nil here
+          (progn
+            (goto-char pt)
+            (let* ((bol (save-excursion (comint-bol) (point)))
+                   (eol (save-excursion (end-of-line) (point)))
+                   (start (progn (skip-syntax-backward "^ " bol)
+                                 (point)))
+                   (end (progn (skip-syntax-forward "^ " eol)
+                               (point))))
+              (list start end grass-commands :exclusive 'no))) 
+        ;; still entering the initial command, so try completing Grass commands
+        ;; if this fails, control passes to comint-completion-at-point
         (let ((command (match-string-no-properties 1)))
           (when (member* command grass-commands :test 'string= :key 'car)
             (goto-char pt)
@@ -242,6 +262,18 @@ y or v will return the vector function, n or r the raster function."
                  (forward-char)
                  (point))
                (progn (skip-syntax-forward "^ ") (point))))))))))
+
+(defun igrass-complete-commands ()
+  "Returns the list of grass programs. I don't know why, but comint-complete finds some
+  but not all of them?"
+  (save-excursion
+    (let* ((bol (save-excursion (comint-bol) (point)))
+          (eol (save-excursion (end-of-line) (point)))
+          (start (progn (skip-syntax-backward "^ " bol)
+                        (point)))
+          (end (progn (skip-syntax-forward "^ " eol)
+                      (point))))
+      (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
   (let ((collection (third (assoc parameter (assoc command grass-commands)))))
@@ -294,7 +326,7 @@ already active."
   (interactive)
 
   ;; initializations
-  (grass-location-list-init)
+  ;; (grass-location-list-init)
   (setenv "GRASS_PAGER" "cat")
   (setenv "GRASS_VERBOSE" "0")
   (add-to-list 'exec-path (concat gisbase "/bin") t)
@@ -331,6 +363,7 @@ already active."
                               grass-prompt-2))
   (grass-update-prompt)
   (igrass-mode)
+  (add-hook 'completion-at-point-functions 'igrass-complete-commands nil t)
   (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
   (setq comint-use-prompt-regexp t))
 
@@ -391,6 +424,15 @@ Defaults to the current location and mapset."
     (let ((map-dir (concat (cdr loc) "/" mapst)))
       (if (member "vector" (directory-files map-dir))
           (directory-files (concat map-dir "/" "vector") nil "^[^.]")))))
+
+(defun grass-regions (&optional location mapset)
+  "List the saved regions for a location and mapset
+Defaults to the currently active location and mapset."
+  (let ((loc (if location location grass-location))
+        (mapst (if mapset mapset grass-mapset)))
+    (let ((map-dir (concat (cdr loc) "/" mapst)))
+      (if (member "windows" (directory-files map-dir))
+          (directory-files (concat map-dir "/" "windows") nil "^[^.]")))))
 
 (defun grass-raster-maps ()
   "Returns a list of all the raster maps in the current location and
