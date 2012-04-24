@@ -2935,7 +2935,7 @@
 
 (grass-p-comp '(("d.vect" "type")) '("point" "line" "boundary" "centroid" "area" "face"))
 
-(grass-p-comp '(("v.proj" "location") ("g.proj" "location")) grass-location-list)
+(grass-p-comp '(("v.proj" "location") ("g.proj" "location")) 'grass-location-list)
 
 (grass-p-comp '(("g.region" "region")) 'grass-regions)
 
