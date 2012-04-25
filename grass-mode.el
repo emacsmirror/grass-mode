@@ -104,27 +104,27 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   (setq grass-commands nil)
 
   (mapc #'(lambda (x)
-            (find-file (cdr x))
-            (beginning-of-buffer)
-            (if (search-forward "<h3>Parameters:</h3>\n<DL>" nil t)
-              (push (cons 
-                     (car x)
-                     (let ((start (point))
-                           (end (search-forward "/DL"))
-                           result-list)
-                       (goto-char start)
-                       (while (search-forward-regexp "<b>\\(.*\\)</b>" end t)
-                         (let ((parameter (match-string-no-properties 1))
-                               (doc-string (progn 
-                                             (search-forward-regexp "<DD>\\(.*\\)</DD>" end t)
-                                             (match-string-no-properties 1))))
-                           (push (list parameter doc-string)
-                                 result-list)))
-                       result-list))
-                    grass-commands)
-              (push (list (car x)) grass-commands))
-            (kill-buffer))
-        grass-doc-table))
+            (with-temp-buffer 
+              (insert-file-contents (cdr x))
+              (beginning-of-buffer)
+              (if (search-forward "<h3>Parameters:</h3>\n<DL>" nil t)
+                  (push (cons 
+                         (car x)
+                         (let ((start (point))
+                               (end (search-forward "/DL"))
+                               result-list)
+                           (goto-char start)
+                           (while (search-forward-regexp "<b>\\(.*\\)</b>" end t)
+                             (let ((parameter (match-string-no-properties 1))
+                                   (doc-string (progn 
+                                                 (search-forward-regexp "<DD>\\(.*\\)</DD>" end t)
+                                                 (match-string-no-properties 1))))
+                               (push (list parameter doc-string)
+                                     result-list)))
+                           result-list))
+                        grass-commands)
+                (push (list (car x)) grass-commands))))
+            grass-doc-table))
 
 
 ;; (defun grass-location-list-init ()
@@ -341,6 +341,7 @@ already active."
                         (concat grass-doc-dir x)) grass-doc-table))
         grass-doc-files)
 
+  (grass-init-command-list)
   (require 'grass-commands)
 
 ;;  (yas/load-directory grass-snippets)
