@@ -426,6 +426,32 @@ Defaults to the current location and mapset."
       (if (member "vector" (directory-files map-dir))
           (directory-files (concat map-dir "/" "vector") nil "^[^.]")))))
 
+(defun grass-raster-maps (&optional location mapset)
+  "Returns a list of all the raster maps in location and mapset.
+Defaults to the current location and mapset." 
+  (let ((loc (if location location grass-location))
+        (mapst (if mapset mapset grass-mapset)))
+    (let ((map-dir (concat (cdr loc) "/" mapst)))
+      (if (member "cell" (directory-files map-dir))
+        (directory-files (concat map-dir "/" "cell") nil "^[^.]")))))
+
+(defun grass-all-maps (&optional location mapset)
+  "Returns a list of all maps, raster and vector.
+Defaults to the current location & mapset"
+  (let ((loc (if location location grass-location))
+        (mapst (if mapset mapset grass-mapset)))
+    (let ((map-dir (concat (cdr loc) "/" mapst)))
+      (append (if (member "vector" (directory-files map-dir))
+                  (directory-files (concat map-dir "/" "vector") nil "^[^.]"))
+              (if (member "cell" (directory-files map-dir))
+                  (directory-files (concat map-dir "/" "cell") nil "^[^.]"))))))
+  
+(defun grass-foreign-vectors()
+"Returns a list of all the vector maps in a different location and mapset"
+ (let ((f-loc (grass-get-location))
+       (f-map (grass-get-mapset)))
+   (grass-vector-maps f-loc f-map)))
+
 (defun grass-regions (&optional location mapset)
   "List the saved regions for a location and mapset
 Defaults to the currently active location and mapset."
@@ -434,19 +460,6 @@ Defaults to the currently active location and mapset."
     (let ((map-dir (concat (cdr loc) "/" mapst)))
       (if (member "windows" (directory-files map-dir))
           (directory-files (concat map-dir "/" "windows") nil "^[^.]")))))
-
-(defun grass-raster-maps ()
-  "Returns a list of all the raster maps in the current location and
-mapset." 
-  (let ((map-dir (concat (cdr grass-location) "/" grass-mapset)))
-    (if (member "cell" (directory-files map-dir))
-        (directory-files (concat map-dir "/" "cell") nil "^[^.]"))))
-
-(defun grass-foreign-vectors()
-"Returns a list of all the vector maps in a different location and mapset"
- (let ((f-loc (grass-get-location))
-       (f-map (grass-get-mapset)))
-   (grass-vector-maps f-loc f-map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;              sGrass                       ;;

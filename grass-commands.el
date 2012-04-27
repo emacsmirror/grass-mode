@@ -37,13 +37,16 @@
 
 (grass-p-comp '(("g.region" "region")) 'grass-regions)
 
+(grass-p-comp '(("db.connect" "driver")) '("pg" "dbf" "ogr" "odbc" "mysql" "sqlite"))
+
 ;; Wouldn't it be nice if everytime an argument takes a vector map as its value, it was
 ;; called the same thing? Some of these are unavoidable (ainput, binput), but qgis?
 ;; Really? 
 
 (grass-p-comp '(("d.vect" "map") ("d.extract" "input") ("d.path" "map")
                 ("d.vect.chart" "map") ("d.vect.thematic" "map")
-                ("d.what.vect" "map") ("d.zoom" "vector") ("g.rename" "vect")
+                ("d.what.vect" "map") ("d.zoom" "vector") 
+                ("g.rename" "vect")
                 ("g.remove" "vect")
                 ("r.carve" "vect") ("r.drain" "vector_points") ("g.region" "vect")
                 ("r.le.setup" "vect") ("r.region" "vector") ("r.volume" "centroids")
@@ -80,5 +83,7 @@
                 ("v.type" "input") ("v.univar" "map") ("v.vol.rst" "input")
                 ("v.voronoi" "input") ("v.what" "map") ("v.what.rast" "vector")
                 ("v.what.vect" "vector")) 'grass-vector-maps)
+
+(grass-p-comp '(("db.columns" "table")) 'grass-all-maps)
 
 (provide 'grass-commands)
