@@ -19,25 +19,53 @@
      (cdr (assoc (second p) (assoc (first p) grass-commands)))
      (cons completion nil))))
 
+(grass-p-comp '(("d.vect" "color"))
+              '(" red" "orange" "yellow" "green" "blue" "indigo" "violet" "white" "black"
+                "gray" "brown" "magenta" "aqua" "grey" "cyan" "purple")) 
+
 (grass-p-comp '(("d.vect" "icon")) 
              '("demo/smrk" "demo/muchomurka" "basic/x" "basic/box" "basic/star" "basic/pushpin"
-               "basic/diamond" "basic/ triangle" "basic/point" "basic/arrow1" "basic/arrow2"
-               "basic/circle" "basic/cross1" "basic/cross2" "basic/ marker" "basic/octagon"
+               "basic/diamond" "basic/triangle" "basic/point" "basic/arrow1" "basic/arrow2"
+               "basic/circle" "basic/cross1" "basic/cross2" "basic/marker" "basic/octagon"
                "extra/adcp" "extra/fish" "extra/ping" "extra/ring" "extra/compass" "extra/fiducial"
-               "extra /4pt_star" "extra/dive_flag" "extra/half-box" "extra/bridge" "extra/offbox_ne"
-               "extra/offbox_nw" "extra/ offbox_se" "extra/offbox_sw" "extra/fancy_compass"
-               "extra/n_arrow1" "extra/n_arrow2" "extra/target" "extra/ airport" "extra/alpha_flag"
-               "extra/pentagon" "extra/half-circle" "geology/strike_line" "geology/ strike_box"
+               "extra/4pt_star" "extra/dive_flag" "extra/half-box" "extra/bridge" "extra/offbox_ne"
+               "extra/offbox_nw" "extra/offbox_se" "extra/offbox_sw" "extra/fancy_compass"
+               "extra/n_arrow1" "extra/n_arrow2" "extra/target" "extra/airport" "extra/alpha_flag"
+               "extra/pentagon" "extra/half-circle" "geology/strike_line" "geology/strike_box"
                "geology/strike_circle" "geology/strike_triangle"))  
 
 
 (grass-p-comp '(("d.vect" "type")) '("point" "line" "boundary" "centroid" "area" "face"))
 
-(grass-p-comp '(("v.proj" "location") ("g.proj" "location")) 'grass-location-list)
+(grass-p-comp '(("g.list" "type"))
+              '("rast" "rast3d" "vect" "oldvect" "asciivect" "icon" "labels" "sites"
+              "region" "region3d" "group" "3dview")) 
+
+(grass-p-comp '(("v.proj" "input")) 'grass-complete-foreign-vectors)
+
+(grass-p-comp '(("r.proj" "input")) 'grass-complete-foreign-rasters)
+
+(grass-p-comp '(("r.proj" "mapset")
+                ("v.proj" "mapset")) 'grass-complete-foreign-mapsets)
+
+(grass-p-comp '(("g.proj" "location")
+                ("r.proj" "location")
+                ("v.proj" "location")) 'grass-location-list)
 
 (grass-p-comp '(("g.region" "region")) 'grass-regions)
 
 (grass-p-comp '(("db.connect" "driver")) '("pg" "dbf" "ogr" "odbc" "mysql" "sqlite"))
+
+(grass-p-comp '(("r.colors" "color")) 
+              '("aspect" "aspectcolr" "bcyr" "bgyr" "byg" "byr" "celsius" "corine"
+              "curvature" "differences" "elevation" "etopo2" "evi" "gdd" "grey" "grey.eq"
+              "grey.log" "grey1.0" "grey255" "gyr" "haxby" "ndvi" "population"
+              "precipitation" "precipitation_monthly" "rainbow" "ramp" "random" "rstcurv"
+              "rules" "ryb" "ryg" "sepia" "slope" "srtm" "terrain" "wave"))  
+
+(grass-p-comp '(("d.rast" "map") 
+                ("g.remove" "rast") ("g.region" "rast")
+                ("r.patch" "input") ("r.colors" "map") ("r.shaded.relief" "map")) 'grass-raster-maps)
 
 ;; Wouldn't it be nice if everytime an argument takes a vector map as its value, it was
 ;; called the same thing? Some of these are unavoidable (ainput, binput), but qgis?
