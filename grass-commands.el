@@ -19,6 +19,9 @@
      (cdr (assoc (second p) (assoc (first p) grass-commands)))
      (cons completion nil))))
 
+(grass-p-comp '(("g.mapset" "location"))
+              'grass-location-list)
+
 (grass-p-comp '(("d.vect" "color"))
               '(" red" "orange" "yellow" "green" "blue" "indigo" "violet" "white" "black"
                 "gray" "brown" "magenta" "aqua" "grey" "cyan" "purple")) 
@@ -45,7 +48,8 @@
 
 (grass-p-comp '(("r.proj" "input")) 'grass-complete-foreign-rasters)
 
-(grass-p-comp '(("r.proj" "mapset")
+(grass-p-comp '(("g.mapset" "mapset")
+                ("r.proj" "mapset")
                 ("v.proj" "mapset")) 'grass-complete-foreign-mapsets)
 
 (grass-p-comp '(("g.proj" "location")

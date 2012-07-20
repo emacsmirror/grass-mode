@@ -50,7 +50,17 @@
   "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
 browse-url. w3m must be installed separately in your Emacs to use this!")
 
-(if grass-help-w3m (require 'w3m))
+(defun grass-close-w3m-window ()
+  "If grass is running, switch to that window. If not, close w3m windows."
+  (interactive)
+  (if (and (processp grass-process)
+               (buffer-name (process-buffer grass-process)))
+      (switch-to-buffer (process-buffer grass-process))
+    (w3m-close-window)))
+
+(if grass-help-w3m 
+    (progn (require 'w3m)
+           (define-key w3m-mode-map "q" 'grass-close-w3m-window)))
 
 (defvar grass-default-location nil
   "The default starting location.")
