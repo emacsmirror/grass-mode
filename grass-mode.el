@@ -368,6 +368,14 @@ already active."
   (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
   (setq comint-use-prompt-regexp t))
 
+(defvar grass-font-lock-keywords
+  '(("[ \t]\\([+-][^ \t\n]+\\)" 1 font-lock-comment-face)
+    ("^[^ \t\n]+:.*" . font-lock-string-face)
+    ("^\\[[1-9][0-9]*\\]" . font-lock-string-face)
+    ("[vdrgi]\\.\\S *") . font-lock-keyword-face)
+  "Additional expressions to highlight in Shell mode.")
+
+
 (define-derived-mode igrass-mode shell-mode "igrass"
   "Major mode for interacting with a Grass in an inferior
 process.\\<igrass-mode-map> \\[comint-send-input] after the end of the
@@ -375,8 +383,11 @@ process' output sends the text from the end of process to the end of
 the current line. 
 
 \\{igrass-mode-map}"
-  (setq comint-use-prompt-regexp t)
-  (setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
+  (setq comint-use-prompt-regexp t
+        comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
+
+  (set (make-local-variable 'font-lock-defaults) '(grass-font-lock-keywords t t)) 
+
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location))
