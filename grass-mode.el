@@ -50,7 +50,17 @@
   "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
 browse-url. w3m must be installed separately in your Emacs to use this!")
 
-(if grass-help-w3m (require 'w3m))
+(defun grass-close-w3m-window ()
+  "If grass is running, switch to that window. If not, close w3m windows."
+  (interactive)
+  (if (and (processp grass-process)
+               (buffer-name (process-buffer grass-process)))
+      (switch-to-buffer (process-buffer grass-process))
+    (w3m-close-window)))
+
+(if grass-help-w3m 
+    (progn (require 'w3m)
+           (define-key w3m-mode-map "q" 'grass-close-w3m-window)))
 
 (defvar grass-default-location nil
   "The default starting location.")
@@ -92,7 +102,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
       grass-doc-files 
       (remove-if-not #'(lambda (x) (string-match-p "html$" x))
                      (directory-files grass-doc-dir))
-      ; The list of Grass html help files
+                                        ; The list of Grass html help files
       grass-help nil)          ; The buffer where the grass help is found
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -124,7 +134,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
                            result-list))
                         grass-commands)
                 (push (list (car x)) grass-commands))))
-            grass-doc-table))
+        grass-doc-table))
 
 
 ;; (defun grass-location-list-init ()
@@ -148,7 +158,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
       (mapcar* #'(lambda (x y) (cons x y))
-                     location-names location-dirs))))
+               location-names location-dirs))))
 
 ;; (defun grass-mapset-list-init ()
 ;;   "Initialize the alist of mapsets for the current grass location."
@@ -268,11 +278,11 @@ y or v will return the vector function, n or r the raster function."
   but not all of them?"
   (save-excursion
     (let* ((bol (save-excursion (comint-bol) (point)))
-          (eol (save-excursion (end-of-line) (point)))
-          (start (progn (skip-syntax-backward "^ " bol)
-                        (point)))
-          (end (progn (skip-syntax-forward "^ " eol)
-                      (point))))
+           (eol (save-excursion (end-of-line) (point)))
+           (start (progn (skip-syntax-backward "^ " bol)
+                         (point)))
+           (end (progn (skip-syntax-forward "^ " eol)
+                       (point))))
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
@@ -309,11 +319,11 @@ y or v will return the vector function, n or r the raster function."
 (defun sgrass-complete-commands ()
   (save-excursion
     (let* ((bol (save-excursion (beginning-of-line) (point)))
-          (eol (save-excursion (end-of-line) (point)))
-          (start (progn (skip-syntax-backward "^ " bol)
-                        (point)))
-          (end (progn (skip-syntax-forward "^ " eol)
-                      (point))))
+           (eol (save-excursion (end-of-line) (point)))
+           (start (progn (skip-syntax-backward "^ " bol)
+                         (point)))
+           (end (progn (skip-syntax-forward "^ " eol)
+                       (point))))
       (list start end grass-commands :exclusive 'no))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -344,7 +354,7 @@ already active."
   (grass-init-command-list)
   (require 'grass-commands)
 
-;;  (yas/load-directory grass-snippets)
+  ;;  (yas/load-directory grass-snippets)
 
   ;; Start a new process, or switch to the existing one
   (unless (and (processp grass-process)
@@ -355,9 +365,9 @@ already active."
                                        (concat  (file-name-as-directory
                                                  (cdr grass-location)) 
                                                 grass-mapset ))))
-    ;; (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
-    ;;                                    (concat (cdr grass-location) "/"
-    ;;                                            grass-mapset))))
+  ;; (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
+  ;;                                    (concat (cdr grass-location) "/"
+  ;;                                            grass-mapset))))
   (switch-to-buffer (process-buffer grass-process))
   (comint-send-string grass-process
                       (format "eval `g.gisenv`\nexport PS2=\"%s\"\n"
@@ -409,7 +419,7 @@ the current line.
 
 
 (defun grass-change-location ()
-"Prompt the user for a new location and mapset."
+  "Prompt the user for a new location and mapset."
   (interactive)
   ;; Should maybe use local variables first here, to insure we don't
   ;; change the globals until the change has been successful?
@@ -444,7 +454,7 @@ Defaults to the current location and mapset."
         (mapst (if mapset mapset grass-mapset)))
     (let ((map-dir (concat (cdr loc) "/" mapst)))
       (if (member "cell" (directory-files map-dir))
-        (directory-files (concat map-dir "/" "cell") nil "^[^.]")))))
+          (directory-files (concat map-dir "/" "cell") nil "^[^.]")))))
 
 (defun grass-all-maps (&optional location mapset)
   "Returns a list of all maps, raster and vector.
@@ -456,12 +466,64 @@ Defaults to the current location & mapset"
                   (directory-files (concat map-dir "/" "vector") nil "^[^.]"))
               (if (member "cell" (directory-files map-dir))
                   (directory-files (concat map-dir "/" "cell") nil "^[^.]"))))))
-  
+
+(defun grass-complete-foreign-mapsets()
+  "Returns a list of all the vector maps in a different location and mapset"
+  (let ((f-loc 
+         (assoc (save-excursion
+                  (comint-bol)
+                  (if (search-forward "location=" nil t) 
+                      (buffer-substring-no-properties (point)
+                                                      (progn (skip-syntax-forward "^ ")
+                                                             (point)))))
+                (grass-location-list))))
+    (if f-loc
+        (grass-mapset-list f-loc))))
+
+(defun grass-complete-foreign-vectors()
+  "Returns a list of all the vector mapsets in a different location"
+  (let ((f-loc 
+         (assoc (save-excursion
+                  (comint-bol)
+                  (if (search-forward "location=" nil t) 
+                      (buffer-substring-no-properties (point)
+                                                      (progn (skip-syntax-forward "^ ")
+                                                             (point)))))
+                (grass-location-list)))
+        (f-map (save-excursion
+                 (comint-bol)
+                 (if (search-forward "mapset=" nil t)
+                     (buffer-substring-no-properties (point)
+                                                     (progn (skip-syntax-forward "^ ")
+                                                            (point)))))))
+    (if (and f-loc f-map)
+        (grass-vector-maps f-loc f-map))))
+
+(defun grass-complete-foreign-rasters()
+  "Returns a list of all the raster mapsets in a different location"
+  (let ((f-loc 
+         (assoc (save-excursion
+                  (comint-bol)
+                  (if (search-forward "location=" nil t) 
+                      (buffer-substring-no-properties (point)
+                                                      (progn (skip-syntax-forward "^ ")
+                                                             (point)))))
+                (grass-location-list)))
+        (f-map (save-excursion
+                 (comint-bol)
+                 (if (search-forward "mapset=" nil t)
+                     (buffer-substring-no-properties (point)
+                                                     (progn (skip-syntax-forward "^ ")
+                                                            (point)))))))
+    (if (and f-loc f-map)
+        (grass-raster-maps f-loc f-map))))
+
 (defun grass-foreign-vectors()
-"Returns a list of all the vector maps in a different location and mapset"
- (let ((f-loc (grass-get-location))
-       (f-map (grass-get-mapset)))
-   (grass-vector-maps f-loc f-map)))
+  "Returns a list of all the vector maps in a different location and mapset"
+  (interactive)
+  (let ((f-loc (grass-get-location))
+        (f-map (grass-get-mapset)))
+    (grass-vector-maps f-loc f-map)))
 
 (defun grass-regions (&optional location mapset)
   "List the saved regions for a location and mapset
