@@ -342,7 +342,7 @@ already active."
   (add-to-list 'exec-path (concat gisbase "/bin") t)
   (add-to-list 'exec-path (concat gisbase "/scripts") t)
 
-  (setq ansi-color-for-comint-mode nil) 
+  ;; (setq ansi-color-for-comint-mode nil) 
   ;; This shouldn't be necessary, but it eliminates the "Marker does not
   ;; point anywhere" issue in the inferior process window. 
   (setq grass-doc-table ())
@@ -385,6 +385,9 @@ process' output sends the text from the end of process to the end of
 the current line. 
 
 \\{igrass-mode-map}"
+  ;; comint-use-prompt-regexp needs to be local; otherwise, it will mess up the
+  ;; beginning-of-line type functions in shell mode!
+  (make-local-variable 'comint-use-prompt-regexp)
   (setq comint-use-prompt-regexp t)
   (setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)

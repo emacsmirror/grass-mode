@@ -22,7 +22,7 @@
 (grass-p-comp '(("g.mapset" "location"))
               'grass-location-list)
 
-(grass-p-comp '(("d.vect" "color"))
+(grass-p-comp '(("d.vect" "color") ("d.vect" "fcolor"))
               '(" red" "orange" "yellow" "green" "blue" "indigo" "violet" "white" "black"
                 "gray" "brown" "magenta" "aqua" "grey" "cyan" "purple")) 
 
