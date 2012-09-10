@@ -378,12 +378,22 @@ already active."
   (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
   (setq comint-use-prompt-regexp t))
 
-(defvar grass-font-lock-keywords
-  '(("[ \t]\\([+-][^ \t\n]+\\)" 1 font-lock-comment-face)
-    ("^[^ \t\n]+:.*" . font-lock-string-face)
-    ("^\\[[1-9][0-9]*\\]" . font-lock-string-face)
-    ("[vdrgi]\\.\\S *") . font-lock-keyword-face)
-  "Additional expressions to highlight in Shell mode.")
+;; (defvar grass-font-lock-keywords
+;;   '(("[ \t]\\([+-][^ \t\n]+\\)" 1 font-lock-comment-face)
+;;     ("^[^ \t\n]+:.*" . font-lock-string-face)
+;;     ("^\\[[1-9][0-9]*\\]" . font-lock-string-face)
+;;     ("[vdrgi]\\.\\S *") . font-lock-keyword-face)
+;;   "Additional expressions to highlight in Shell mode.")
+
+;; (defconst grass-font-lock-keywords-1
+;;   (list 
+;;    `( ,(concat "\\<" 
+;;                (regexp-opt 
+;;                 (mapcar #'car grass-commands))
+;;                "\\>") . font-lock-builtin-face)))
+
+;; (defvar grass-font-lock-keywords grass-font-lock-keywords-1
+;;   "Default highlighting expressions for WPDL mode")
 
 
 (define-derived-mode igrass-mode shell-mode "igrass"
@@ -400,7 +410,8 @@ the current line.
 
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
-  (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location))
+  (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
+  (run-hooks 'igrass-mode-hook))
 
 
 (defun grass-view-help ()
@@ -586,7 +597,8 @@ process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
   (define-key sgrass-mode-map (kbd "C-c C-r") 'grass-send-region)
   (define-key sgrass-mode-map "\t" 'completion-at-point)
   (add-hook 'completion-at-point-functions 'sgrass-complete-commands nil t)
-  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t))
+  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
+  (run-hooks 'sgrass-mode-hook))
 
 
 (provide 'grass-mode)
