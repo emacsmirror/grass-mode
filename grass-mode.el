@@ -50,18 +50,6 @@
   "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
 browse-url. w3m must be installed separately in your Emacs to use this!")
 
-(defun grass-close-w3m-window ()
-  "If grass is running, switch to that window. If not, close w3m windows."
-  (interactive)
-  (if (and (processp grass-process)
-               (buffer-name (process-buffer grass-process)))
-      (switch-to-buffer (process-buffer grass-process))
-    (w3m-close-window)))
-
-(if grass-help-w3m 
-    (progn (require 'w3m)
-           (define-key w3m-mode-map "q" 'grass-close-w3m-window)))
-
 (defvar grass-default-location nil
   "The default starting location.")
 
@@ -602,6 +590,43 @@ process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
 
 
 (provide 'grass-mode)
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; w3m customizations ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun grass-close-w3m-window ()
+  "If grass is running, switch to that window. If not, close w3m windows."
+  (interactive)
+  (if (and (processp grass-process)
+               (buffer-name (process-buffer grass-process)))
+      (switch-to-buffer (process-buffer grass-process))
+    (w3m-close-window)))
+
+(if grass-help-w3m 
+    (progn (require 'w3m)
+           (define-key w3m-mode-map "q" 'grass-close-w3m-window)))
+
+(defun goto-grass-help-index ()
+  "Goto the grass help index in w3m"
+  (interactive)
+  (w3m-goto-url (concat "file://" grass-doc-dir "index.html")))
+
+(defun goto-grass-vector-index ()
+  "Goto the grass help index in w3m"
+  (interactive)
+  (w3m-goto-url (concat "file://" grass-doc-dir "vector.html")))
+
+(defun goto-grass-display-index ()
+  "Goto the grass help index in w3m"
+  (interactive)
+  (w3m-goto-url (concat "file://" grass-doc-dir "display.html")))
+
+;; Non-standard bindings here, need to document!
+
+(define-key w3m-mode-map "\C-ch" 'goto-grass-help-index)
+(define-key w3m-mode-map "\C-cv" 'goto-grass-vector-index)
+(define-key w3m-mode-map "\C-cd" 'goto-grass-display-index)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Lies and misdirection beyond this point. ;;

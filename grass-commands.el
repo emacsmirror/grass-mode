@@ -23,7 +23,7 @@
               'grass-location-list)
 
 (grass-p-comp '(("d.vect" "color") ("d.vect" "fcolor"))
-              '(" red" "orange" "yellow" "green" "blue" "indigo" "violet" "white" "black"
+              '("red" "orange" "yellow" "green" "blue" "indigo" "violet" "white" "black"
                 "gray" "brown" "magenta" "aqua" "grey" "cyan" "purple")) 
 
 (grass-p-comp '(("d.vect" "icon")) 
