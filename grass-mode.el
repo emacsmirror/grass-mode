@@ -63,7 +63,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
 ;;(defvar grass-snippets "~/.emacs.d/grass-mode.el/snippets"
 ;;  "Directory for all Grass-specific yas templates.")
 
-(defvar grass-prompt "GRASS ($LOCATION_NAME) \\w > "
+(defvar grass-prompt "$LOCATION_NAME:$MAPSET> "
   "String to format the Grass prompt.")
 
 (defvar grass-prompt-2 "> "
@@ -547,8 +547,8 @@ Defaults to the currently active location and mapset."
 
 (defun grass-prep-process ()
   "Send a newline to the Grass process window.
-An ugly hack, without which commands sent directly by Emacs to Grass
-(not entered at the command line) produce output starting at the
+An ugly hack, without which commands sent directly by Emacs to Grass,
+not entered at the command line, produce output starting at the
 current prompt, rather than on the next line."  
   (save-window-excursion
     (switch-to-buffer (process-buffer grass-process))
@@ -617,16 +617,34 @@ process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
   (interactive)
   (w3m-goto-url (concat "file://" grass-doc-dir "vector.html")))
 
+(defun goto-grass-raster-index ()
+  "Goto the grass help index in w3m"
+  (interactive)
+  (w3m-goto-url (concat "file://" grass-doc-dir "raster.html")))
+
 (defun goto-grass-display-index ()
   "Goto the grass help index in w3m"
   (interactive)
   (w3m-goto-url (concat "file://" grass-doc-dir "display.html")))
 
+(defun goto-grass-general-index ()
+  "Goto the grass help index in w3m"
+  (interactive)
+  (w3m-goto-url (concat "file://" grass-doc-dir "general.html")))
+
+(defun goto-grass-database-index ()
+  "Goto the grass help index in w3m"
+  (interactive)
+  (w3m-goto-url (concat "file://" grass-doc-dir "database.html")))
+
 ;; Non-standard bindings here, need to document!
 
 (define-key w3m-mode-map "\C-ch" 'goto-grass-help-index)
 (define-key w3m-mode-map "\C-cv" 'goto-grass-vector-index)
+(define-key w3m-mode-map "\C-cr" 'goto-grass-raster-index)
 (define-key w3m-mode-map "\C-cd" 'goto-grass-display-index)
+(define-key w3m-mode-map "\C-cg" 'goto-grass-general-index)
+(define-key w3m-mode-map "\C-cb" 'goto-grass-database-index)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Lies and misdirection beyond this point. ;;
@@ -648,3 +666,10 @@ process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
 Will always happen when entering data interactively. This variable only
 changes what happens when sending code from a script buffer to the process
 buffer.")
+
+(defun grass-scroll-to-bottom ()
+  "Advance point to the end of the grass process buffer."  
+  (let ((old-buf (current-buffer)))
+    (switch-to-buffer (process-buffer grass-process))
+    (goto-char (point-max))
+    (switch-to-buffer old-buf)))
