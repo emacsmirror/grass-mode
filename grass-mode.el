@@ -59,10 +59,6 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
 (defvar grass-doc-dir "/usr/share/doc/grass-doc/html/"
   "The location of the Grass html documentation.")
 
-;; Should maybe use a snippet bundle instead?
-;;(defvar grass-snippets "~/.emacs.d/grass-mode.el/snippets"
-;;  "Directory for all Grass-specific yas templates.")
-
 (defvar grass-prompt "$LOCATION_NAME:$MAPSET> "
   "String to format the Grass prompt.")
 
@@ -71,6 +67,9 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
 
 (defvar gisbase "/usr/lib/grass64"
   "The top-level directory that includes the bin and scripts directories for grass.")
+
+(defvar grass-log-dir (concat grassdata "/logs")
+  "The default directory to store interactive grass session logs")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;      Global Variables       ;;
@@ -101,6 +100,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   "Parses the help files, extracting a list of commands and their parameters"
   (setq grass-commands nil)
 
+  ;; Parse the help files:
   (mapc #'(lambda (x)
             (with-temp-buffer 
               (insert-file-contents (cdr x))
@@ -122,7 +122,10 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
                            result-list))
                         grass-commands)
                 (push (list (car x)) grass-commands))))
-        grass-doc-table))
+        grass-doc-table)
+
+  ;; load the parameter values
+    (load "grass-commands.el"))
 
 
 ;; (defun grass-location-list-init ()
@@ -340,7 +343,6 @@ already active."
         grass-doc-files)
 
   (grass-init-command-list)
-  (require 'grass-commands)
 
   ;;  (yas/load-directory grass-snippets)
 
@@ -399,6 +401,7 @@ the current line.
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
+  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
   (run-hooks 'igrass-mode-hook))
 
 
@@ -429,6 +432,23 @@ the current line.
                               (car grass-location) grass-mapset))
   (grass-update-prompt))
 
+;; my-today is a utility function defined in my .emacs. Most people won't have that
+;; already, so add it for everyone else here:
+(unless (fboundp 'my-today)
+  (defun my-today ()
+    "Returns todays date in the format yyyy-mm-dd"
+    (car (split-string (shell-command-to-string "date +%Y-%m-%d") "\n"))))
+
+(defun grass-quit ()
+  "Send the grass process the quit command, so it will clean up before exiting.
+The transcript of the current session is automatically saved (or appended) to a file in
+$grassdata/log"
+  (interactive)
+  (with-current-buffer (process-buffer grass-process)
+    (comint-send-string grass-process "exit\n")
+    (let ((log-file (concat grass-log-dir "/" (my-today) ".grass")))
+      (append-to-file (point-min) (point-max) log-file)) 
+    (kill-buffer)))
 
 (defun grass-update-prompt ()
   "Updates the grass prompt."
@@ -645,6 +665,7 @@ process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
 (define-key w3m-mode-map "\C-cd" 'goto-grass-display-index)
 (define-key w3m-mode-map "\C-cg" 'goto-grass-general-index)
 (define-key w3m-mode-map "\C-cb" 'goto-grass-database-index)
+(define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Lies and misdirection beyond this point. ;;

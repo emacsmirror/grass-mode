@@ -68,8 +68,11 @@
               "rules" "ryb" "ryg" "sepia" "slope" "srtm" "terrain" "wave"))  
 
 (grass-p-comp '(("d.rast" "map") 
-                ("g.remove" "rast") ("g.region" "rast")
-                ("r.patch" "input") ("r.colors" "map") ("r.shaded.relief" "map")) 'grass-raster-maps)
+                ("g.remove" "rast") ("g.region" "rast") ("g.rename" "rast")
+                ("r.patch" "input") ("r.colors" "map") ("r.shaded.relief" "map") 
+                ("r.mask" "input") ("r.resample" "input") ("r.out.ascii" "input") 
+                ("r.report" "map") ("r.reclass" "input") ("r.stats" "input") ("r.univar" "map"))
+                'grass-raster-maps) 
 
 ;; Wouldn't it be nice if everytime an argument takes a vector map as its value, it was
 ;; called the same thing? Some of these are unavoidable (ainput, binput), but qgis?
