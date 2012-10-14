@@ -2,7 +2,7 @@
 ;; grass-commands contains all the grass commands and their parameters.
 
 ;; Re-parse this list from the help files with grass-init-command-list. This used to be
-;; slow (8+ seconds), so I cached the results in this file. Switchting from find-file to
+;; slow (8+ seconds), so I cached the results in this file. Switching from find-file to
 ;; with-temp-buffer insert-file-contents resulted in loading taking less than a second, so
 ;; caching is no longer necessary.  
 
@@ -11,13 +11,6 @@
 ;; separation means that additional completion options can be added piece-meal, and we
 ;; never need to hand-edit grass-commands.
 
-
-(defun grass-p-comp (pairs completion)
-  "set the completion string/function for the parameter of command"
-  (dolist (p pairs)
-    (setcdr
-     (cdr (assoc (second p) (assoc (first p) grass-commands)))
-     (cons completion nil))))
 
 (grass-p-comp '(("g.mapset" "location"))
               'grass-location-list)

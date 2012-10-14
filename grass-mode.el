@@ -27,68 +27,77 @@
 (require 'cl)  
 (require 'shell)
 
-;; (defun grass-mapcar* (f &rest xs)
-;;   "MAPCAR for multiple sequences.
-;; Available in cl.el, but requiring cl.el is bad form."
-;;   (if (not (memq nil xs))
-;;     (cons (apply f (mapcar 'car xs))
-;;       (apply 'mapcar* f (mapcar 'cdr xs)))))
-
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization Variables ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defgroup grass-mode nil 
+  "Running GRASS GIS from within an Emacs buffer."
+  :version "24.2.50.1")
+
+(defcustom grassdata "~/grassdata"
+  "The directory where grass locations are stored."
+  :group 'grass-mode)
+
+(defcustom gisbase "/usr/lib/grass64"
+  "The top-level directory that includes the bin and scripts directories for grass."
+  :group 'grass-mode)
+
+(defcustom grass-doc-dir "/usr/share/doc/grass-doc/html/"
+  "The location of the Grass html documentation."
+  :group 'grass-mode)
+
+(defcustom grass-default-location nil
+  "The default starting location."
+  :group 'grass-mode)
+
+(defcustom grass-default-mapset "PERMANENT"
+  "The default starting mapset."
+  :group 'grass-mode)
+
+(defcustom grass-prompt "$LOCATION_NAME:$MAPSET> "
+  "String to format the Grass prompt.
+$LOCATION_NAME expands to the name of the grass location.
+$MAPSET expands to the name of the grass location.
+Normal bash prompt expansions are available, such as:
+\\w - the current working directory
+\\W - the  basename  of the current working directory"
+  :link '(url-link :tag "Bash Prompt Escapes"
+  "http://tldp.org/HOWTO/Bash-Prompt-HOWTO/bash-prompt-escape-sequences.html") 
+  :group 'grass-mode)
+
+(defcustom grass-prompt-2 "> "
+  "String to format the Grass continuation-line prompt, PS2.
+The same formatting options from grass-prompt are available."
+  :group 'grass-mode)
+
+(defcustom grass-log-dir (concat grassdata "/logs")
+  "The default directory to store interactive grass session logs.
+Set this to nil to turn off logging."
+  :group 'grass-mode
+  :set-after '(grassdata))
+
+(defcustom grass-help-w3m nil 
+  "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
+browse-url. w3m must be installed separately in your Emacs to use this!"
+  :type 'boolean
+  :require 'w3m
+  :group 'grass-mode)
+
 (defvar igrass-mode-hook nil)
 (defvar sgrass-mode-hook nil)
-
-(defvar grassdata "~/grassdata"
-  "The directory where grass locations are stored.")
-
-(defvar grass-help-w3m nil 
-  "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
-browse-url. w3m must be installed separately in your Emacs to use this!")
-
-(defvar grass-default-location nil
-  "The default starting location.")
-
-(defvar grass-default-mapset "PERMANENT"
-  "The default starting mapset.")
-
-(defvar grass-doc-dir "/usr/share/doc/grass-doc/html/"
-  "The location of the Grass html documentation.")
-
-(defvar grass-prompt "$LOCATION_NAME:$MAPSET> "
-  "String to format the Grass prompt.")
-
-(defvar grass-prompt-2 "> "
-  "String to format the Grass continuation-line prompt, PS2.")
-
-(defvar gisbase "/usr/lib/grass64"
-  "The top-level directory that includes the bin and scripts directories for grass.")
-
-(defvar grass-log-dir (concat grassdata "/logs")
-  "The default directory to store interactive grass session logs")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;      Global Variables       ;;
 ;; (shouldn't be set by users) ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; This adds v and r to the list of possible answers for y-or-n-p
-;; (setq grass-query-replace-map (make-sparse-keymap))
-;; (set-keymap-parent grass-query-replace-map query-replace-map)
-;; (define-key grass-query-replace-map "v" 'act)
-;; (define-key grass-query-replace-map "r" 'skip)
-
-;; (setq grass-location-list nil ; The list of grass locations known to grass-mode.el
 (setq grass-location nil      ; The currently active grass location
       grass-process nil       ; The active Grass process
       grass-mapset nil        ; The currently active grass mapset
       grass-doc-files 
-      (remove-if-not #'(lambda (x) (string-match-p "html$" x))
-                     (directory-files grass-doc-dir))
+        (remove-if-not #'(lambda (x) (string-match-p "html$" x))
+                       (directory-files grass-doc-dir))
                                         ; The list of Grass html help files
       grass-help nil)          ; The buffer where the grass help is found
 
@@ -127,38 +136,12 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
   ;; load the parameter values
     (load "grass-commands.el"))
 
-
-;; (defun grass-location-list-init ()
-;;   "Initialize the alist of grass locations"
-;;   (when grassdata
-;;     (let* ((location-dirs 
-;;             (remove-if-not 'file-directory-p
-;;                            (directory-files grassdata t "^[^.]")))
-;;            (location-names
-;;             (mapcar 'file-name-nondirectory location-dirs)))
-;;       (setq grass-location-list
-;;             (mapcar* #'(lambda (x y) (cons x y))
-;;                      location-names location-dirs)))))
-
-(defun grass-location-list ()
-  "Return an alist of grass locations"
-  (when grassdata
-    (let* ((location-dirs 
-            (remove-if-not 'file-directory-p
-                           (directory-files grassdata t "^[^.]")))
-           (location-names
-            (mapcar 'file-name-nondirectory location-dirs)))
-      (mapcar* #'(lambda (x y) (cons x y))
-               location-names location-dirs))))
-
-;; (defun grass-mapset-list-init ()
-;;   "Initialize the alist of mapsets for the current grass location."
-;;   (when grass-location
-;;     (setq grass-mapset-list 
-;;           (mapcar 'file-name-nondirectory
-;;                   (remove-if-not 'file-directory-p
-;;                                  (directory-files
-;;                                   (cdr grass-location) t "^[^.]"))))))
+(defun grass-p-comp (pairs completion)
+  "set the completion string/function for the parameter of command"
+  (dolist (p pairs)
+    (setcdr
+     (cdr (assoc (second p) (assoc (first p) grass-commands)))
+     (cons completion nil))))
 
 (defun grass-get-location ()
   "Prompt the user for the location."
@@ -167,295 +150,14 @@ browse-url. w3m must be installed separately in your Emacs to use this!")
           (grass-location-list) nil t nil nil grass-default-location)
          (grass-location-list)))
 
-(defun grass-mapset-list (&optional location)
-  "List the mapsets for a location, defaulting to the current location."
-  (let ((loc (if location
-                 location
-               grass-location)))
-    (mapcar 'file-name-nondirectory
-            (remove-if-not 'file-directory-p
-                           (directory-files
-                            (cdr loc) t "^[^.]")))))
-
 (defun grass-get-mapset ()
   "Prompt the user for the mapset for the current location."
   (completing-read (format "Grass mapset (%s): " grass-default-mapset)
                    (grass-mapset-list) nil t nil nil grass-default-mapset))
 
-(defun grass-get-vector ()
-  "Prompt the user for a vector map."
-  (completing-read "Vector: " (grass-vector-maps)))
-
-(defun grass-get-raster ()
-  "Prompt the user for a raster map."
-  (completing-read "Raster: " (grass-raster-maps)))
-
-(defun grass-get-map ()
-  (funcall (grass-raster-or-vector (grass-current-command))))
-
-(defun grass-current-command ()
-  "Returns the current grass command, or nil."
-  (save-excursion
-    (let ((case-fold-search nil))
-      (if (search-backward-regexp
-           "\\(\\W\\|^\\)\\(\\([gdvimr]\\|db\\)\\.[^ \t\n]+\\)" nil t)
-          (match-string-no-properties 2)))))
-
-(defun grass-raster-or-vector (command)
-  "If we can't tell if we need a vector or a raster, we prompt the user.
-y or v will return the vector function, n or r the raster function."
-  (cond ((string-match "rast" command) 'grass-get-raster)
-        ((string-match "vect" command) 'grass-get-vector)
-        (t (if (let ((query-replace-map grass-query-replace-map))
-                 (y-or-n-p "Vector map?"))
-               'grass-get-vector
-             'grass-get-raster))))
-
-(defun grass-prompt-raster-or-vector ()
-  "Prompts for r or v to indicate raster or vector maps.")
-
-(defun grass-which-map ()
-  (grass-raster-or-vector (grass-current-command)))
-
-(defun grass-get-parameter ()
-  (interactive)
-  (completing-read "Parameter: "
-                   (cdr (assoc (grass-current-command) grass-commands))))
-
-(defun grass-completion-at-point ()
-  (interactive)
-  (let ((pt (point))
-        start end)
-    (save-excursion                     ;; backup to beginning of multi-line command
-      (while (progn (beginning-of-line)
-                    (looking-at grass-prompt-2))
-        (previous-line))
-      (comint-bol)
-      (re-search-forward "\\(\\S +\\)\\s ?" nil t)
-      (if (and (>= pt (match-beginning 1))
-               (<= pt (match-end 1)))
-          (progn
-            (goto-char pt)
-            (let* ((bol (save-excursion (comint-bol) (point)))
-                   (eol (save-excursion (end-of-line) (point)))
-                   (start (progn (skip-syntax-backward "^ " bol)
-                                 (point)))
-                   (end (progn (skip-syntax-forward "^ " eol)
-                               (point))))
-              (list start end grass-commands :exclusive 'no))) 
-        ;; still entering the initial command, so try completing Grass commands
-        ;; if this fails, control passes to comint-completion-at-point
-        (let ((command (match-string-no-properties 1)))
-          (when (member* command grass-commands :test 'string= :key 'car)
-            (goto-char pt)
-            (skip-syntax-backward "^ ")
-            (setq start (point))
-            (skip-syntax-forward "^ ")
-            (setq end (point))
-            (if (not (string-match "=" (buffer-substring start end)))
-                (list start end (cdr (assoc command grass-commands)) :exclusive 'no)
-              (grass-complete-parameters
-               command 
-               (buffer-substring start (search-backward "="))
-               (progn
-                 (goto-char pt)
-                 (re-search-backward "=\\|,")
-                 (forward-char)
-                 (point))
-               (progn (skip-syntax-forward "^ ") (point))))))))))
-
-(defun igrass-complete-commands ()
-  "Returns the list of grass programs. I don't know why, but comint-complete finds some
-  but not all of them?"
-  (save-excursion
-    (let* ((bol (save-excursion (comint-bol) (point)))
-           (eol (save-excursion (end-of-line) (point)))
-           (start (progn (skip-syntax-backward "^ " bol)
-                         (point)))
-           (end (progn (skip-syntax-forward "^ " eol)
-                       (point))))
-      (list start end grass-commands :exclusive 'no))))
-
-(defun grass-complete-parameters (command parameter start end)
-  (let ((collection (third (assoc parameter (assoc command grass-commands)))))
-    (list start end 
-          (if (functionp collection)
-              (funcall collection)
-            collection) 
-          :exclusive 'no)))
-
-;; (defun grass-complete-parameters (command parameter start end)
-;;   (message (concat command " " parameter " " (number-to-string start) " "
-;;                    (number-to-string end)))
-;;   (message (substring command 0 2))
-;;   (cond ((or (string= parameter "vect")  ;; asking for a vector explicitly
-;;             (and (or (string-match "vect" command) ;; asking for a map in a vector command
-;;                      (string= (substring command 0 2) "v."))
-;;                  (or (string= parameter "map")
-;;                      (string= parameter "input"))))
-;;          (list start end (grass-vector-maps) :exclusive 'no))
-;;         ((or (string= parameter "rast")  ;; asking for a raster explicitly
-;;              (and (or (string-match "rast" command) ;; asking for a map in a raster command
-;;                       (string= (substring command 0 2) "r."))
-;;                  (or (string= parameter "map")
-;;                      (string= parameter "input"))))
-;;          (list start end (grass-raster-maps) :exclusive 'no))
-;;         ((string= parameter "location")
-;;          (list start end grass-location-list :exclusive 'no))
-;;         ((string= parameter "type")
-;;          (list start end '("point" "line" "boundary" "centroid" "area" "face") 
-;;                :exclusive 'no))
-;;         (t nil)))
-
-(defun sgrass-complete-commands ()
-  (save-excursion
-    (let* ((bol (save-excursion (beginning-of-line) (point)))
-           (eol (save-excursion (end-of-line) (point)))
-           (start (progn (skip-syntax-backward "^ " bol)
-                         (point)))
-           (end (progn (skip-syntax-forward "^ " eol)
-                       (point))))
-      (list start end grass-commands :exclusive 'no))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Starting Grass and the modes ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun grass ()
-  "Start the Grass process, or switch to the process buffer if it's
-already active." 
-  (interactive)
-
-  ;; initializations
-  ;; (grass-location-list-init)
-  (setenv "GRASS_PAGER" "cat")
-  (setenv "GRASS_VERBOSE" "0")
-  (add-to-list 'exec-path (concat gisbase "/bin") t)
-  (add-to-list 'exec-path (concat gisbase "/scripts") t)
-
-  ;; (setq ansi-color-for-comint-mode nil) 
-  ;; This shouldn't be necessary, but it eliminates the "Marker does not
-  ;; point anywhere" issue in the inferior process window. 
-  (setq grass-doc-table ())
-  (mapc #'(lambda (x) 
-            (push (cons (substring x 0 -5)
-                        (concat grass-doc-dir x)) grass-doc-table))
-        grass-doc-files)
-
-  (grass-init-command-list)
-
-  ;;  (yas/load-directory grass-snippets)
-
-  ;; Start a new process, or switch to the existing one
-  (unless (and (processp grass-process)
-               (buffer-name (process-buffer grass-process)))
-    (setq grass-location (grass-get-location))
-    (setq grass-mapset (grass-get-mapset))
-    (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
-                                       (concat  (file-name-as-directory
-                                                 (cdr grass-location)) 
-                                                grass-mapset ))))
-  ;; (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
-  ;;                                    (concat (cdr grass-location) "/"
-  ;;                                            grass-mapset))))
-  (switch-to-buffer (process-buffer grass-process))
-  (comint-send-string grass-process
-                      (format "eval `g.gisenv`\nexport PS2=\"%s\"\n"
-                              grass-prompt-2))
-  (grass-update-prompt)
-  (igrass-mode)
-  (add-hook 'completion-at-point-functions 'igrass-complete-commands nil t)
-  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
-  (setq comint-use-prompt-regexp t))
-
-;; (defvar grass-font-lock-keywords
-;;   '(("[ \t]\\([+-][^ \t\n]+\\)" 1 font-lock-comment-face)
-;;     ("^[^ \t\n]+:.*" . font-lock-string-face)
-;;     ("^\\[[1-9][0-9]*\\]" . font-lock-string-face)
-;;     ("[vdrgi]\\.\\S *") . font-lock-keyword-face)
-;;   "Additional expressions to highlight in Shell mode.")
-
-;; (defconst grass-font-lock-keywords-1
-;;   (list 
-;;    `( ,(concat "\\<" 
-;;                (regexp-opt 
-;;                 (mapcar #'car grass-commands))
-;;                "\\>") . font-lock-builtin-face)))
-
-;; (defvar grass-font-lock-keywords grass-font-lock-keywords-1
-;;   "Default highlighting expressions for WPDL mode")
-
-
-(define-derived-mode igrass-mode shell-mode "igrass"
-  "Major mode for interacting with a Grass in an inferior
-process.\\<igrass-mode-map> \\[comint-send-input] after the end of the
-process' output sends the text from the end of process to the end of
-the current line. 
-
-\\{igrass-mode-map}"
-  ;; comint-use-prompt-regexp needs to be local; otherwise, it will mess up the
-  ;; beginning-of-line type functions in shell mode!
-  (make-local-variable 'comint-use-prompt-regexp)
-  (setq comint-use-prompt-regexp t)
-  (setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
-  (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
-  (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
-  (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
-  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
-  (run-hooks 'igrass-mode-hook))
-
-
-(defun grass-view-help ()
-  (interactive)
-  (let* ((key (completing-read "Grass help: " grass-doc-table nil t))
-         (file (cdr (assoc key grass-doc-table))))
-    (if (not grass-help-w3m)
-        (browse-url (concat "file://" file))
-      (if (buffer-name grass-help) 
-          (if (get-buffer-window grass-help)
-              (select-window (get-buffer-window grass-help))
-            (switch-to-buffer-other-window grass-help))
-        (switch-to-buffer-other-window "*scratch*"))
-      (w3m-goto-url-new-session (concat "file://" file))
-      (setq grass-help (current-buffer)))))
-
-
-(defun grass-change-location ()
-  "Prompt the user for a new location and mapset."
-  (interactive)
-  ;; Should maybe use local variables first here, to insure we don't
-  ;; change the globals until the change has been successful?
-  (setq grass-location (grass-get-location)
-        grass-mapset (grass-get-mapset))
-  (comint-send-string grass-process
-                      (format "g.mapset location=%s mapset=%s\n"
-                              (car grass-location) grass-mapset))
-  (grass-update-prompt))
-
-;; my-today is a utility function defined in my .emacs. Most people won't have that
-;; already, so add it for everyone else here:
-(unless (fboundp 'my-today)
-  (defun my-today ()
-    "Returns todays date in the format yyyy-mm-dd"
-    (car (split-string (shell-command-to-string "date +%Y-%m-%d") "\n"))))
-
-(defun grass-quit ()
-  "Send the grass process the quit command, so it will clean up before exiting.
-The transcript of the current session is automatically saved (or appended) to a file in
-$grassdata/log"
-  (interactive)
-  (with-current-buffer (process-buffer grass-process)
-    (comint-send-string grass-process "exit\n")
-    (let ((log-file (concat grass-log-dir "/" (my-today) ".grass")))
-      (append-to-file (point-min) (point-max) log-file)) 
-    (kill-buffer)))
-
-(defun grass-update-prompt ()
-  "Updates the grass prompt."
-  (comint-send-string grass-process
-                      (format "eval `g.gisenv`\nexport PS1=\"%s\"\n"
-                              grass-prompt))
-  (grass-prep-process))
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Completion Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun grass-vector-maps (&optional location mapset)
   "Returns a list of all the vector maps in location and mapset.
@@ -553,6 +255,222 @@ Defaults to the currently active location and mapset."
       (if (member "windows" (directory-files map-dir))
           (directory-files (concat map-dir "/" "windows") nil "^[^.]")))))
 
+(defun grass-location-list ()
+  "Return an alist of grass locations"
+  (when grassdata
+    (let* ((location-dirs 
+            (remove-if-not 'file-directory-p
+                           (directory-files grassdata t "^[^.]")))
+           (location-names
+            (mapcar 'file-name-nondirectory location-dirs)))
+      (mapcar* #'(lambda (x y) (cons x y))
+               location-names location-dirs))))
+
+(defun grass-mapset-list (&optional location)
+  "List the mapsets for a location, defaulting to the current location."
+  (let ((loc (if location
+                 location
+               grass-location)))
+    (mapcar 'file-name-nondirectory
+            (remove-if-not 'file-directory-p
+                           (directory-files
+                            (cdr loc) t "^[^.]")))))
+
+(defun grass-completion-at-point ()
+  (interactive)
+  (let ((pt (point))
+        start end)
+    (save-excursion                     ;; backup to beginning of multi-line command
+      (while (progn (beginning-of-line)
+                    (looking-at grass-prompt-2))
+        (previous-line))
+      (comint-bol)
+      (re-search-forward "\\(\\S +\\)\\s ?" nil t)
+      (if (and (>= pt (match-beginning 1))
+               (<= pt (match-end 1)))
+          (progn
+            (goto-char pt)
+            (let* ((bol (save-excursion (comint-bol) (point)))
+                   (eol (save-excursion (end-of-line) (point)))
+                   (start (progn (skip-syntax-backward "^ " bol)
+                                 (point)))
+                   (end (progn (skip-syntax-forward "^ " eol)
+                               (point))))
+              (list start end grass-commands :exclusive 'no))) 
+        ;; still entering the initial command, so try completing Grass commands
+        ;; if this fails, control passes to comint-completion-at-point
+        (let ((command (match-string-no-properties 1)))
+          (when (member* command grass-commands :test 'string= :key 'car)
+            (goto-char pt)
+            (skip-syntax-backward "^ ")
+            (setq start (point))
+            (skip-syntax-forward "^ ")
+            (setq end (point))
+            (if (not (string-match "=" (buffer-substring start end)))
+                (list start end (cdr (assoc command grass-commands)) :exclusive 'no)
+              (grass-complete-parameters
+               command 
+               (buffer-substring start (search-backward "="))
+               (progn
+                 (goto-char pt)
+                 (re-search-backward "=\\|,")
+                 (forward-char)
+                 (point))
+               (progn (skip-syntax-forward "^ ") (point))))))))))
+
+(defun igrass-complete-commands ()
+  "Returns the list of grass programs. I don't know why, but comint-complete finds some
+  but not all of them?"
+  (save-excursion
+    (let* ((bol (save-excursion (comint-bol) (point)))
+           (eol (save-excursion (end-of-line) (point)))
+           (start (progn (skip-syntax-backward "^ " bol)
+                         (point)))
+           (end (progn (skip-syntax-forward "^ " eol)
+                       (point))))
+      (list start end grass-commands :exclusive 'no))))
+
+(defun grass-complete-parameters (command parameter start end)
+  (let ((collection (third (assoc parameter (assoc command grass-commands)))))
+    (list start end 
+          (if (functionp collection)
+              (funcall collection)
+            collection) 
+          :exclusive 'no)))
+
+(defun sgrass-complete-commands ()
+  (save-excursion
+    (let* ((bol (save-excursion (beginning-of-line) (point)))
+           (eol (save-excursion (end-of-line) (point)))
+           (start (progn (skip-syntax-backward "^ " bol)
+                         (point)))
+           (end (progn (skip-syntax-forward "^ " eol)
+                       (point))))
+      (list start end grass-commands :exclusive 'no))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Starting Grass and the modes ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun grass ()
+  "Start the Grass process, or switch to the process buffer if it's
+already active." 
+  (interactive)
+
+  ;; initializations
+  ;; (grass-location-list-init)
+  (setenv "GRASS_PAGER" "cat")
+  (setenv "GRASS_VERBOSE" "0")
+  (add-to-list 'exec-path (concat gisbase "/bin") t)
+  (add-to-list 'exec-path (concat gisbase "/scripts") t)
+
+  ;; (setq ansi-color-for-comint-mode nil) 
+  ;; This shouldn't be necessary, but it eliminates the "Marker does not
+  ;; point anywhere" issue in the inferior process window. 
+  (setq grass-doc-table ())
+  (mapc #'(lambda (x) 
+            (push (cons (substring x 0 -5)
+                        (concat grass-doc-dir x)) grass-doc-table))
+        grass-doc-files)
+
+  (grass-init-command-list)
+
+  ;; Start a new process, or switch to the existing one
+  (unless (and (processp grass-process)
+               (buffer-name (process-buffer grass-process)))
+    (setq grass-location (grass-get-location))
+    (setq grass-mapset (grass-get-mapset))
+    (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
+                                       (concat  (file-name-as-directory
+                                                 (cdr grass-location)) 
+                                                grass-mapset ))))
+  (switch-to-buffer (process-buffer grass-process))
+  (comint-send-string grass-process
+                      (format "eval `g.gisenv`\nexport PS2=\"%s\"\n"
+                              grass-prompt-2))
+  (grass-update-prompt)
+  (igrass-mode)
+  (add-hook 'completion-at-point-functions 'igrass-complete-commands nil t)
+  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
+  (setq comint-use-prompt-regexp t))
+
+(define-derived-mode igrass-mode shell-mode "igrass"
+  "Major mode for interacting with a Grass in an inferior
+process.\\<igrass-mode-map> \\[comint-send-input] after the end of the
+process' output sends the text from the end of process to the end of
+the current line. 
+
+\\{igrass-mode-map}"
+  ;; comint-use-prompt-regexp needs to be local; otherwise, it will mess up the
+  ;; beginning-of-line type functions in shell mode!
+  (make-local-variable 'comint-use-prompt-regexp)
+  (setq comint-use-prompt-regexp t)
+  (setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
+  (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
+  (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
+  (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
+  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
+  (run-hooks 'igrass-mode-hook))
+
+
+(defun grass-view-help (PREFIX)
+  "Prompts the user for a help page to view.
+If w3m is the help browser, when called with a prefix it will open a new tab."
+  (interactive "P")
+  (let* ((key (completing-read "Grass help: " grass-doc-table nil t))
+         (file (cdr (assoc key grass-doc-table))))
+    (if (not grass-help-w3m)
+        (browse-url (concat "file://" file))
+      (if (buffer-name grass-help) 
+          (if (get-buffer-window grass-help)
+              (select-window (get-buffer-window grass-help))
+            (switch-to-buffer-other-window grass-help))
+        (switch-to-buffer-other-window "*scratch*"))
+      (if PREFIX
+          (w3m-goto-url-new-session (concat "file://" file))
+        (w3m-goto-url (concat "file://" file)))
+      (setq grass-help (current-buffer)))))
+
+(defun grass-change-location ()
+  "Prompt the user for a new location and mapset."
+  (interactive)
+  ;; Should maybe use local variables first here, to insure we don't
+  ;; change the globals until the change has been successful?
+  (setq grass-location (grass-get-location)
+        grass-mapset (grass-get-mapset))
+  (comint-send-string grass-process
+                      (format "g.mapset location=%s mapset=%s\n"
+                              (car grass-location) grass-mapset))
+  (grass-update-prompt))
+
+;; my-today is a utility function defined in my .emacs. Most people won't have that
+;; already, so add it for everyone else here:
+(unless (fboundp 'my-today)
+  (defun my-today ()
+    "Returns todays date in the format yyyy-mm-dd"
+    (car (split-string (shell-command-to-string "date +%Y-%m-%d") "\n"))))
+
+(defun grass-quit ()
+  "Send the grass process the quit command, so it will clean up before exiting.
+The transcript of the current session is automatically saved (or appended) to a file in
+$grassdata/log"
+  (interactive)
+  (with-current-buffer (process-buffer grass-process)
+    (comint-send-string grass-process "exit\n")
+    (if grass-log-dir
+        (let ((log-file (concat grass-log-dir "/" (my-today) ".grass")))
+          (unless (file-exists-p grass-log-dir)
+            (mkdir grass-log-dir))
+          (append-to-file (point-min) (point-max) log-file))) 
+    (kill-buffer)))
+
+(defun grass-update-prompt ()
+  "Updates the grass prompt."
+  (comint-send-string grass-process
+                      (format "eval `g.gisenv`\nexport PS1=\"%s\"\n"
+                              grass-prompt))
+  (grass-prep-process))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;              sGrass                       ;;
 ;; Major mode for editing grass script files ;;
@@ -593,7 +511,6 @@ current prompt, rather than on the next line."
       (grass-send-region start end)))
   (forward-line 1))
 
-
 (define-derived-mode sgrass-mode sh-mode "sgrass"
   "Major mode for editing Grass scripts, and sending commands to a Grass
 process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
@@ -623,74 +540,134 @@ process.\\<igrass-mode-map> \\[comint-send-input] Based on Shell-script mode.
       (switch-to-buffer (process-buffer grass-process))
     (w3m-close-window)))
 
-(if grass-help-w3m 
-    (progn (require 'w3m)
-           (define-key w3m-mode-map "q" 'grass-close-w3m-window)))
-
-(defun goto-grass-help-index ()
-  "Goto the grass help index in w3m"
-  (interactive)
-  (w3m-goto-url (concat "file://" grass-doc-dir "index.html")))
-
-(defun goto-grass-vector-index ()
-  "Goto the grass help index in w3m"
-  (interactive)
-  (w3m-goto-url (concat "file://" grass-doc-dir "vector.html")))
-
-(defun goto-grass-raster-index ()
-  "Goto the grass help index in w3m"
-  (interactive)
-  (w3m-goto-url (concat "file://" grass-doc-dir "raster.html")))
-
-(defun goto-grass-display-index ()
-  "Goto the grass help index in w3m"
-  (interactive)
-  (w3m-goto-url (concat "file://" grass-doc-dir "display.html")))
-
-(defun goto-grass-general-index ()
-  "Goto the grass help index in w3m"
-  (interactive)
-  (w3m-goto-url (concat "file://" grass-doc-dir "general.html")))
-
-(defun goto-grass-database-index ()
-  "Goto the grass help index in w3m"
-  (interactive)
-  (w3m-goto-url (concat "file://" grass-doc-dir "database.html")))
-
+(defun grass-jump-to-help-index (ind &optional PREF)
+  "Goto a specific grass help index"
+  (interactive "c\nP")
+  (let ((dest 
+         (concat "file://" grass-doc-dir 
+                 (case ind
+                   (?h "index.html")
+                   (?v "vector.html")
+                   (?r "raster.html")
+                   (?d "display.html")
+                   (?b "database.html")
+                   (?g "general.html")
+                   (t nil)))))
+    (unless (string= dest (concat "file://" grass-doc-dir))
+      (if PREF 
+          (w3m-goto-url-new-session dest)
+        (w3m-goto-url dest)))))
+                        
 ;; Non-standard bindings here, need to document!
 
-(define-key w3m-mode-map "\C-ch" 'goto-grass-help-index)
-(define-key w3m-mode-map "\C-cv" 'goto-grass-vector-index)
-(define-key w3m-mode-map "\C-cr" 'goto-grass-raster-index)
-(define-key w3m-mode-map "\C-cd" 'goto-grass-display-index)
-(define-key w3m-mode-map "\C-cg" 'goto-grass-general-index)
-(define-key w3m-mode-map "\C-cb" 'goto-grass-database-index)
+(define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
+(define-key w3m-mode-map "q" 'grass-close-w3m-window)
 (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
+(define-key w3m-ctl-c-map "\C-v" 'grass-view-help)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Lies and misdirection beyond this point. ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar *grass-source* ()
-  "The buffer where the grass source script is found")
+;; (defun grass-mapcar* (f &rest xs)
+;;   "MAPCAR for multiple sequences.
+;; Available in cl.el, but requiring cl.el is bad form."
+;;   (if (not (memq nil xs))
+;;     (cons (apply f (mapcar 'car xs))
+;;       (apply 'mapcar* f (mapcar 'cdr xs)))))
 
-(defun grass-set-process-buffer ()
-  (interactive)
-  (setq *grass-buffer* (buffer-name)))
+;; (defvar *grass-source* ()
+;;   "The buffer where the grass source script is found")
 
-(defun grass-set-source-buffer ()
-  (interactive)
-  (setq *grass-source* (buffer-name)))
+;; (defun grass-set-process-buffer ()
+;;   (interactive)
+;;   (setq *grass-buffer* (buffer-name)))
 
-(defvar grass-scroll-on-output t
-  "If non-nil, scroll to the end of the Grass process buffer after input.
-Will always happen when entering data interactively. This variable only
-changes what happens when sending code from a script buffer to the process
-buffer.")
+;; (defun grass-set-source-buffer ()
+;;   (interactive)
+;;   (setq *grass-source* (buffer-name)))
 
-(defun grass-scroll-to-bottom ()
-  "Advance point to the end of the grass process buffer."  
-  (let ((old-buf (current-buffer)))
-    (switch-to-buffer (process-buffer grass-process))
-    (goto-char (point-max))
-    (switch-to-buffer old-buf)))
+;; (defvar grass-scroll-on-output t
+;;   "If non-nil, scroll to the end of the Grass process buffer after input.
+;; Will always happen when entering data interactively. This variable only
+;; changes what happens when sending code from a script buffer to the process
+;; buffer.")
+
+;; (defun grass-scroll-to-bottom ()
+;;   "Advance point to the end of the grass process buffer."  
+;;   (let ((old-buf (current-buffer)))
+;;     (switch-to-buffer (process-buffer grass-process))
+;;     (goto-char (point-max))
+;;     (switch-to-buffer old-buf)))
+
+
+;; (defun grass-raster-or-vector (command)
+;;   "If we can't tell if we need a vector or a raster, we prompt the user.
+;; y or v will return the vector function, n or r the raster function."
+;;   (cond ((string-match "rast" command) 'grass-get-raster)
+;;         ((string-match "vect" command) 'grass-get-vector)
+;;         (t (if (let ((query-replace-map grass-query-replace-map))
+;;                  (y-or-n-p "Vector map?"))
+;;                'grass-get-vector
+;;              'grass-get-raster))))
+
+;; (defun grass-prompt-raster-or-vector ()
+;;   "Prompts for r or v to indicate raster or vector maps.")
+
+;; (defun grass-which-map ()
+;;   (grass-raster-or-vector (grass-current-command)))
+
+;; (defun grass-get-vector ()
+;;   "Prompt the user for a vector map."
+;;   (completing-read "Vector: " (grass-vector-maps)))
+
+;; (defun grass-get-raster ()
+;;   "Prompt the user for a raster map."
+;;   (completing-read "Raster: " (grass-raster-maps)))
+
+;; (defun grass-get-map ()
+;;   (funcall (grass-raster-or-vector (grass-current-command))))
+
+;; (defun grass-get-parameter ()
+;;   (interactive)
+;;   (completing-read "Parameter: "
+;;                    (cdr (assoc (grass-current-command) grass-commands))))
+
+;; (defun grass-current-command ()
+;;   "Returns the current grass command, or nil."
+;;   (save-excursion
+;;     (let ((case-fold-search nil))
+;;       (if (search-backward-regexp
+;;            "\\(\\W\\|^\\)\\(\\([gdvimr]\\|db\\)\\.[^ \t\n]+\\)" nil t)
+;;           (match-string-no-properties 2)))))
+
+;; (defun goto-grass-help-index ()
+;;   "Goto the grass help index in w3m"
+;;   (interactive)
+;;   (w3m-goto-url (concat "file://" grass-doc-dir "index.html")))
+
+;; (defun goto-grass-vector-index ()
+;;   "Goto the grass help index in w3m"
+;;   (interactive)
+;;   (w3m-goto-url (concat "file://" grass-doc-dir "vector.html")))
+
+;; (defun goto-grass-raster-index ()
+;;   "Goto the grass help index in w3m"
+;;   (interactive)
+;;   (w3m-goto-url (concat "file://" grass-doc-dir "raster.html")))
+
+;; (defun goto-grass-display-index ()
+;;   "Goto the grass help index in w3m"
+;;   (interactive)
+;;   (w3m-goto-url (concat "file://" grass-doc-dir "display.html")))
+
+;; (defun goto-grass-general-index ()
+;;   "Goto the grass help index in w3m"
+;;   (interactive)
+;;   (w3m-goto-url (concat "file://" grass-doc-dir "general.html")))
+
+;; (defun goto-grass-database-index ()
+;;   "Goto the grass help index in w3m"
+;;   (interactive)
+;;   (w3m-goto-url (concat "file://" grass-doc-dir "database.html")))
+
