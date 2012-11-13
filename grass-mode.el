@@ -601,6 +601,11 @@ process. Based on Shell-script mode.
 ;; This should be a minor mode for w3m buffers that are visiting
 ;; grass help files!
 
+;; If this were a minor mode, we wouldn't need to require w3m unless we
+;; were actually using it!  
+(require 'w3m)                          
+
+
 (defun grass-close-w3m-window ()
   "If grass is running, switch to that window. If not, close w3m windows."
   (interactive)
