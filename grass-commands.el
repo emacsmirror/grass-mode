@@ -12,8 +12,11 @@
 ;; never need to hand-edit grass-commands.
 
 
-(grass-p-comp '(("g.mapset" "location"))
-              'grass-location-list)
+(grass-p-comp '(("v.out.ogr" "format"))
+              '("ESRI_Shapefile" "MapInfo_File" "TIGER" "S57" "DGN" "Memory" "BNA" "CSV"
+              "GML" "GPX" "LIBKML" "KML" "GeoJSON" "Interlis_1" "Interlis_2" "GMT"
+              "SQLite" "ODBC" "MSSQLSpatial" "PostgreSQL" "MySQL" "PCIDSK" "DXF"
+              "Geoconcept" "GeoRSS" "GPSTrackMaker" "PGDump" "GPSBabel" "GFT" "CouchDB")) 
 
 (grass-p-comp '(("d.vect" "color") ("d.vect" "fcolor"))
               '("red" "orange" "yellow" "green" "blue" "indigo" "violet" "white" "black"
@@ -30,6 +33,7 @@
                "extra/pentagon" "extra/half-circle" "geology/strike_line" "geology/strike_box"
                "geology/strike_circle" "geology/strike_triangle"))  
 
+(grass-p-comp '(("v.category" "option")) '("add" "del" "chlayer" "sum" "report" "print"))
 
 (grass-p-comp '(("d.vect" "type")) '("point" "line" "boundary" "centroid" "area" "face"))
 
@@ -45,7 +49,7 @@
                 ("r.proj" "mapset")
                 ("v.proj" "mapset")) 'grass-complete-foreign-mapsets)
 
-(grass-p-comp '(("g.proj" "location")
+(grass-p-comp '(("g.proj" "location") ("g.mapset" "location")
                 ("r.proj" "location")
                 ("v.proj" "location")) 'grass-location-list)
 

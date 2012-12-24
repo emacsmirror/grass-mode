@@ -170,7 +170,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
                                result-list)
                            (goto-char start)
                            (while (search-forward-regexp "<b>\\(.*\\)</b>" end t)
-                             (let ((parameter (match-string-no-properties 1))
+                             (let ((parameter (concat (match-string-no-properties 1) "="))
                                    (doc-string (progn 
                                                  (search-forward-regexp "<DD>\\(.*\\)</DD>" end t)
                                                  (match-string-no-properties 1))))
@@ -188,7 +188,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
   "set the completion string/function for the parameter of command"
   (dolist (p pairs)
     (setcdr
-     (cdr (assoc (second p) (assoc (first p) grass-commands)))
+     (cdr (assoc (concat (second p) "=") (assoc (first p) grass-commands)))
      (cons completion nil))))
 
 (defun grass-get-location ()
@@ -390,7 +390,7 @@ Defaults to the currently active location and mapset."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (third (assoc parameter (assoc command grass-commands)))))
+  (let ((collection (third (assoc (concat parameter "=") (assoc command grass-commands)))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
