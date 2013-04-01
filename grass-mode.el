@@ -540,14 +540,17 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
 The transcript of the current session is automatically saved (or appended) to a file in
 $grassdata/log"
   (interactive)
-  (with-current-buffer (process-buffer grass-process)
-    (comint-send-string grass-process "exit\n")
-    (if grass-log-dir
-        (let ((log-file (concat grass-log-dir "/" (my-today) ".grass")))
-          (unless (file-exists-p grass-log-dir)
-            (mkdir grass-log-dir))
-          (append-to-file (point-min) (point-max) log-file))) 
-    (kill-buffer)))
+  
+  (if (y-or-n-p "Kill *GRASS* process buffer?")
+      (with-current-buffer (process-buffer grass-process)
+        (if (string= (process-status grass-process) "run")
+            (comint-send-string grass-process "exit\n"))
+        (if grass-log-dir
+            (let ((log-file (concat grass-log-dir "/" (my-today) ".grass")))
+              (unless (file-exists-p grass-log-dir)
+                (mkdir grass-log-dir))
+              (append-to-file (point-min) (point-max) log-file))) 
+        (kill-buffer))))
 
 (defun grass-update-prompt ()
   "Updates the grass prompt."

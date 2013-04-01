@@ -35,7 +35,8 @@
 
 (grass-p-comp '(("v.category" "option")) '("add" "del" "chlayer" "sum" "report" "print"))
 
-(grass-p-comp '(("d.vect" "type")) '("point" "line" "boundary" "centroid" "area" "face"))
+(grass-p-comp '(("d.vect" "type") ("v.out.ogr" "type"))
+              '("point" "line" "boundary" "centroid" "area" "face"))
 
 (grass-p-comp '(("g.list" "type"))
               '("rast" "rast3d" "vect" "oldvect" "asciivect" "icon" "labels" "sites"
