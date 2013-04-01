@@ -124,12 +124,24 @@ Set this to nil to turn off logging."
   :group 'grass-mode
   :set-after '(grassdata))
 
+(defun grass-set-w3m-help (opt value)
+  (if (eq value t)
+      (if (not (require 'w3m nil t))
+          (message "w3m must be installed in order to use grass-help-w3m!")
+        (set-default opt value)
+        (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
+        (define-key w3m-mode-map "q" 'grass-close-w3m-window)
+        (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
+        (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
+    (set-default opt value)))
+
 (defcustom grass-help-w3m nil 
   "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
 browse-url. w3m must be installed separately in your Emacs to use this!"
   :type 'boolean
   :require 'w3m
-  :group 'grass-mode)
+  :group 'grass-mode
+  :set 'grass-set-w3m-help)
 
 (defvar igrass-mode-hook nil)
 (defvar sgrass-mode-hook nil)
@@ -334,7 +346,6 @@ Defaults to the currently active location and mapset."
 
 (defun grass-completion-at-point ()
   (interactive)
-  (message "gcap") ;; DEBUG
   (let ((pt (point))
         start end)
     (save-excursion                     ;; backup to beginning of multi-line command
@@ -351,7 +362,6 @@ Defaults to the currently active location and mapset."
                (<= pt (match-end 1)))
         ;; still entering the initial command, so try completing Grass commands
           (progn
-	    (message "still-entering") ;; DEBUG
             (goto-char pt)
             (let* ((bol (save-excursion (comint-bol) (point)))
                    (eol (save-excursion (end-of-line) (point)))
@@ -365,7 +375,6 @@ Defaults to the currently active location and mapset."
         ;; we have a complete command, so lookup parameters in the
         ;; grass-commands table:
         (let ((command (match-string-no-properties 1)))
-          (message command) ;; DEBUG
           (when (grass-member command grass-commands :test 'string= :key 'car)
             (goto-char pt)
             (skip-syntax-backward "^ ")
@@ -490,7 +499,7 @@ the current line.
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
-  ;;  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
+  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
 
   (setq font-lock-defaults '(grass-mode-keywords))
 
@@ -620,11 +629,6 @@ process. Based on Shell-script mode.
 ;; This should be a minor mode for w3m buffers that are visiting
 ;; grass help files!
 
-;; If this were a minor mode, we wouldn't need to require w3m unless we
-;; were actually using it!  
-;;(require 'w3m)                          
-
-
 (defun grass-close-w3m-window ()
   "If grass is running, switch to that window. If not, close w3m windows."
   (interactive)
@@ -651,42 +655,6 @@ process. Based on Shell-script mode.
           (w3m-goto-url-new-session dest)
         (w3m-goto-url dest)))))
 
-;; Need to modify this so that the w3m-mode-map is modified whenever grass-help-w3m is
-;; turned on. As is this just runs once at initialization. 
-(when grass-help-w3m                        
-  (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
-  (define-key w3m-mode-map "q" 'grass-close-w3m-window)
-  (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
-  (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
-
 (provide 'grass-mode)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Lies and misdirection beyond this point. ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (defvar *grass-source* ()
-;;   "The buffer where the grass source script is found")
-
-;; (defun grass-set-process-buffer ()
-;;   (interactive)
-;;   (setq *grass-buffer* (buffer-name)))
-
-;; (defun grass-set-source-buffer ()
-;;   (interactive)
-;;   (setq *grass-source* (buffer-name)))
-
-;; (defvar grass-scroll-on-output t
-;;   "If non-nil, scroll to the end of the Grass process buffer after input.
-;; Will always happen when entering data interactively. This variable only
-;; changes what happens when sending code from a script buffer to the process
-;; buffer.")
-
-;; (defun grass-scroll-to-bottom ()
-;;   "Advance point to the end of the grass process buffer."  
-;;   (let ((old-buf (current-buffer)))
-;;     (switch-to-buffer (process-buffer grass-process))
-;;     (goto-char (point-max))
-;;     (switch-to-buffer old-buf)))
 
 ;;; grass-mode.el ends here
