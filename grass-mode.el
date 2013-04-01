@@ -63,8 +63,8 @@ Included to obviate the need for cl.el."
 (defun grass-member (cl-item cl-list &rest cl-keys)
   "Find the first occurrence of ITEM in LIST.
 Return the sublist of LIST whose car is ITEM.
-\nKeywords supported:  :test :test-not :key
-\n(fn ITEM LIST [KEYWORD VALUE]...)"
+Keywords supported:  :test :test-not :key
+(fn ITEM LIST [KEYWORD VALUE]...)"
   (if cl-keys
       (cl--parsing-keywords (:test :test-not :key :if :if-not) ()
 	(while (and cl-list (not (cl--check-test cl-item (car cl-list))))
@@ -182,7 +182,11 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
         grass-doc-table)
 
   ;; load the parameter values
-    (load "grass-commands.el"))
+    (load "grass-commands.el")
+    (setq grass-mode-keywords 
+          (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
+                      font-lock-keyword-face))))
+    
 
 (defun grass-p-comp (pairs completion)
   "set the completion string/function for the parameter of command"
@@ -330,6 +334,7 @@ Defaults to the currently active location and mapset."
 
 (defun grass-completion-at-point ()
   (interactive)
+  (message "gcap") ;; DEBUG
   (let ((pt (point))
         start end)
     (save-excursion                     ;; backup to beginning of multi-line command
@@ -346,6 +351,7 @@ Defaults to the currently active location and mapset."
                (<= pt (match-end 1)))
         ;; still entering the initial command, so try completing Grass commands
           (progn
+	    (message "still-entering") ;; DEBUG
             (goto-char pt)
             (let* ((bol (save-excursion (comint-bol) (point)))
                    (eol (save-excursion (end-of-line) (point)))
@@ -359,6 +365,7 @@ Defaults to the currently active location and mapset."
         ;; we have a complete command, so lookup parameters in the
         ;; grass-commands table:
         (let ((command (match-string-no-properties 1)))
+          (message command) ;; DEBUG
           (when (grass-member command grass-commands :test 'string= :key 'car)
             (goto-char pt)
             (skip-syntax-backward "^ ")
@@ -445,14 +452,22 @@ already active."
                                                  (cdr grass-location)) 
                                                 grass-mapset ))))
   (switch-to-buffer (process-buffer grass-process))
+  (set-process-window-size grass-process (window-height) (window-width))
   (comint-send-string grass-process
                       (format "eval `g.gisenv`\nexport PS2=\"%s\"\n"
                               grass-prompt-2))
   (grass-update-prompt)
+  (set-process-filter grass-process 'comint-output-filter)
   (igrass-mode)
   (add-hook 'completion-at-point-functions 'igrass-complete-commands nil t)
-  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
-  (setq comint-use-prompt-regexp t))
+  (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t))
+
+(defun comint-fix-window-size ()
+  "Change process window size. Used to update process output when Emacs window size changes."
+  (when (derived-mode-p 'comint-mode)
+    (set-process-window-size (get-buffer-process (current-buffer))
+                         (window-height)
+                         (window-width))))
 
 (define-derived-mode igrass-mode shell-mode "igrass"
   "Major mode for interacting with a Grass in an inferior
@@ -461,24 +476,25 @@ process' output sends the text from the end of process to the end of
 the current line. 
 
 \\{igrass-mode-map}"
-  ;; comint-use-prompt-regexp needs to be local; otherwise, it will mess up the
-  ;; beginning-of-line type functions in shell mode!
-  (make-local-variable 'comint-use-prompt-regexp)
-  (setq comint-use-prompt-regexp t)
 
   ;; Removing '=' from comint-file-name-chars enables file-name
   ;; completion for parameters, e.g., v.in.ascii input=... This may
   ;; cause problems in cases where '=' is part of the file name.
 
   (unless (memq system-type '(ms-dos windows-nt cygwin))
+    (make-local-variable 'comint-file-name-chars)
     (setq comint-file-name-chars
           "[]~/A-Za-z0-9+@:_.$#%,{}-"))
 
-  (setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +")
+  ;;(setq comint-prompt-regexp "^[^#$%>\n]*[#$%>] +") ;; no longer necessary?
   (define-key igrass-mode-map (kbd "C-c C-v") 'grass-view-help)
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
-  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
+  ;;  (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
+
+  (setq font-lock-defaults '(grass-mode-keywords))
+
+  (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
 
 
@@ -603,7 +619,7 @@ process. Based on Shell-script mode.
 
 ;; If this were a minor mode, we wouldn't need to require w3m unless we
 ;; were actually using it!  
-(require 'w3m)                          
+;;(require 'w3m)                          
 
 
 (defun grass-close-w3m-window ()
@@ -631,11 +647,14 @@ process. Based on Shell-script mode.
       (if PREF 
           (w3m-goto-url-new-session dest)
         (w3m-goto-url dest)))))
-                        
-(define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
-(define-key w3m-mode-map "q" 'grass-close-w3m-window)
-(define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
-(define-key w3m-ctl-c-map "\C-v" 'grass-view-help)
+
+;; Need to modify this so that the w3m-mode-map is modified whenever grass-help-w3m is
+;; turned on. As is this just runs once at initialization. 
+(when grass-help-w3m                        
+  (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
+  (define-key w3m-mode-map "q" 'grass-close-w3m-window)
+  (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
+  (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
 
 (provide 'grass-mode)
 
