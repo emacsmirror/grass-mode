@@ -444,10 +444,8 @@ already active."
   (setenv "GRASS_VERBOSE" "0")
 
   ;; Don't modify the path more than once!
-  (unless (member (concat gisbase "/bin") exec-path)
-    (add-to-list 'exec-path (concat gisbase "/bin") t))
-  (unless (member (concat gisbase "/scripts") exec-path)
-    (add-to-list 'exec-path (concat gisbase "/scripts") t))
+  (add-to-list 'exec-path (concat gisbase "/bin"))
+  (add-to-list 'exec-path (concat gisbase "/scripts"))
 
   (grass-init-command-list)
 
