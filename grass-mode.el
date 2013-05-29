@@ -64,7 +64,7 @@ Included to obviate the need for cl.el."
   "Find the first occurrence of ITEM in LIST.
 Return the sublist of LIST whose car is ITEM.
 Keywords supported:  :test :test-not :key
-(fn ITEM LIST [KEYWORD VALUE]...)"
+ (fn ITEM LIST [KEYWORD VALUE]...)"
   (if cl-keys
       (cl--parsing-keywords (:test :test-not :key :if :if-not) ()
 	(while (and cl-list (not (cl--check-test cl-item (car cl-list))))
@@ -146,27 +146,27 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 (defvar igrass-mode-hook nil)
 (defvar sgrass-mode-hook nil)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;      Global Variables       ;;
-;; (shouldn't be set by users) ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(setq grass-location nil      ; The currently active grass location
-      grass-process nil       ; The active Grass process
-      grass-mapset nil        ; The currently active grass mapset
-      grass-doc-files         ; The list of grass help files
-         (delete nil (mapcar #'(lambda (x) 
-                                 (if (string-match-p "html$" x)
-                                     x))
-                             (directory-files grass-doc-dir)))
-      grass-help nil)          ; The buffer where the grass help is found
-
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Initializations ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
 (defun grass-init-command-list ()
   "Parses the help files, extracting a list of commands and their parameters"
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;      Global Variables       ;;
+;; (shouldn't be set by users) ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (setq grass-location nil      ; The currently active grass location
+        grass-process nil       ; The active Grass process
+        grass-mapset nil        ; The currently active grass mapset
+        grass-doc-files         ; The list of grass help files
+        (delete nil (mapcar #'(lambda (x) 
+                                (if (string-match-p "html$" x)
+                                    x))
+                            (directory-files grass-doc-dir)))
+        grass-help nil)          ; The buffer where the grass help is found
+  
   (setq grass-doc-table ())
   (mapc #'(lambda (x) 
             (push (cons (substring x 0 -5)
