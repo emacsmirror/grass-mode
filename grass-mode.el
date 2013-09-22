@@ -64,7 +64,7 @@ Included to obviate the need for cl.el."
   "Find the first occurrence of ITEM in LIST.
 Return the sublist of LIST whose car is ITEM.
 Keywords supported:  :test :test-not :key
-(fn ITEM LIST [KEYWORD VALUE]...)"
+ (fn ITEM LIST [KEYWORD VALUE]...)"
   (if cl-keys
       (cl--parsing-keywords (:test :test-not :key :if :if-not) ()
 	(while (and cl-list (not (cl--check-test cl-item (car cl-list))))
@@ -88,6 +88,10 @@ Keywords supported:  :test :test-not :key
 
 (defcustom gisbase "/usr/lib/grass64"
   "The top-level directory that includes the bin and scripts directories for grass."
+  :group 'grass-mode)
+
+(defcustom grass-program "/usr/bin/grass"
+  "The GRASS GIS executable."
   :group 'grass-mode)
 
 (defcustom grass-doc-dir "/usr/share/doc/grass-doc/html/"
@@ -154,11 +158,6 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 (setq grass-location nil      ; The currently active grass location
       grass-process nil       ; The active Grass process
       grass-mapset nil        ; The currently active grass mapset
-      grass-doc-files         ; The list of grass help files
-         (delete nil (mapcar #'(lambda (x) 
-                                 (if (string-match-p "html$" x)
-                                     x))
-                             (directory-files grass-doc-dir)))
       grass-help nil)          ; The buffer where the grass help is found
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -167,10 +166,17 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 
 (defun grass-init-command-list ()
   "Parses the help files, extracting a list of commands and their parameters"
-  (setq grass-doc-table ())
+  (setq grass-doc-table ()
+        grass-doc-files         ; The list of grass help files
+        (delete nil (mapcar #'(lambda (x) 
+                                (if (string-match-p "html$" x)
+                                    x))
+                            (directory-files grass-doc-dir))))
+
   (mapc #'(lambda (x) 
             (push (cons (substring x 0 -5)
-                        (concat grass-doc-dir x)) grass-doc-table))
+                        (concat grass-doc-dir x)) 
+                  grass-doc-table))
         grass-doc-files)
 
   (setq grass-commands nil)
@@ -187,7 +193,11 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
                                (end (search-forward "/DL"))
                                result-list)
                            (goto-char start)
-                           (while (search-forward-regexp "<b>\\(.*\\)</b>" end t)
+                           (while (search-forward-regexp "<b>\\([^=]*\\)</b>" end t)
+                             ;; the above regexp is an ugly hack to hopefully accomodate
+                             ;; the format change between GRASS 6.4 and GRASS 7.0. This
+                             ;; will all get ripped out and replaced with parsing the
+                             ;; output of --interface-description for each GRASS program
                              (let ((parameter (concat (match-string-no-properties 1) "="))
                                    (doc-string (progn 
                                                  (search-forward-regexp "<DD>\\(.*\\)</DD>" end t)
@@ -449,17 +459,18 @@ already active."
   (unless (member (concat gisbase "/scripts") exec-path)
     (add-to-list 'exec-path (concat gisbase "/scripts") t))
 
-  (grass-init-command-list)
-
   ;; Start a new process, or switch to the existing one
   (unless (and (processp grass-process)
                (buffer-name (process-buffer grass-process)))
     (setq grass-location (grass-get-location))
     (setq grass-mapset (grass-get-mapset))
-    (setq grass-process (start-process "grass" "*grass*" "grass" "-text"
+    (setq grass-process (start-process "grass" "*grass*" grass-program "-text"
                                        (concat  (file-name-as-directory
                                                  (cdr grass-location)) 
                                                 grass-mapset ))))
+
+  ;; (grass-init-command-list) ;; currently broken, need to reimplement using xml parser.
+
   (switch-to-buffer (process-buffer grass-process))
   (set-process-window-size grass-process (window-height) (window-width))
   (comint-send-string grass-process
