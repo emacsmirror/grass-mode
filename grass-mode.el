@@ -164,58 +164,57 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 ;; Initializations ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
-(defun grass-init-command-list ()
-  "Parses the help files, extracting a list of commands and their parameters"
-  (setq grass-doc-table ()
-        grass-doc-files         ; The list of grass help files
-        (delete nil (mapcar #'(lambda (x) 
-                                (if (string-match-p "html$" x)
-                                    x))
-                            (directory-files grass-doc-dir))))
+(defun grass-parse-command-list ()
+  "Run each grass binary with the --interface-description option, parsing the output to
+  generate the completion data for grass-commands.
 
-  (mapc #'(lambda (x) 
-            (push (cons (substring x 0 -5)
-                        (concat grass-doc-dir x)) 
-                  grass-doc-table))
-        grass-doc-files)
+  The return value, used for grass-commands, is a list of the form:
 
-  (setq grass-commands nil)
+  ((command-one
+     ((parameter-one (value1 value2)) 
+      (parameter-two nil)))
+   (command-two nil))
 
-  ;; Parse the help files:
-  (mapc #'(lambda (x)
+  Commands with no parameters have a cdr of nil. Parameters without a fixed list of
+  possible values get a cdr of nil."
+
+  (let* ((bin-dir (concat gisbase "/bin/"))
+         (bins (directory-files bin-dir))
+         command-list)
+
+    (dolist (bin (cddr bins))           ; drop the '.' and '..' entries
+      (push
+       (grass-get-bin-params bin)
+       command-list))
+    command-list))
+
+(defun grass-get-bin-params (bin)
+  "Run bin with the option --interface-description, parsing the output to produce a single
+  list element for use in grass-commands. See grass-parse-command-list"
+  (let* ((help-file (make-temp-file "grass-mode"))
+         (intdesc 
+          (progn 
+            (comint-send-string grass-process (concat bin " --interface-description > "
+                                                      help-file "\n" ))
+            (sleep-for 1)
             (with-temp-buffer 
-              (insert-file-contents (cdr x))
-              (beginning-of-buffer)
-              (if (search-forward "<h3>Parameters:</h3>\n<DL>" nil t)
-                  (push (cons 
-                         (car x)
-                         (let ((start (point))
-                               (end (search-forward "/DL"))
-                               result-list)
-                           (goto-char start)
-                           (while (search-forward-regexp "<b>\\([^=]*\\)</b>" end t)
-                             ;; the above regexp is an ugly hack to hopefully accomodate
-                             ;; the format change between GRASS 6.4 and GRASS 7.0. This
-                             ;; will all get ripped out and replaced with parsing the
-                             ;; output of --interface-description for each GRASS program
-                             (let ((parameter (concat (match-string-no-properties 1) "="))
-                                   (doc-string (progn 
-                                                 (search-forward-regexp "<DD>\\(.*\\)</DD>" end t)
-                                                 (match-string-no-properties 1))))
-                               (push (list parameter doc-string)
-                                     result-list)))
-                           result-list))
-                        grass-commands)
-                (push (list (car x)) grass-commands))))
-        grass-doc-table)
+              (insert-file help-file)
+              (libxml-parse-xml-region (point-min) (point-max))))))
+    (list bin
+          (let (par-list)
+            (dolist (el (cdr intdesc))
+              (if (eq (car el) 'parameter)
+                  (push (list (cdaadr el)
+                              (if (assoc 'values el)
+                                  (let (val-list)
+                                    (dolist (vals (cddr (assoc 'values el)))
+                                      (push (caddr (caddr vals)) 
+                                            val-list))
+                                    val-list))) 
+                        par-list)))
+            par-list))))
 
-  ;; load the parameter values
-    (load "grass-commands.el")
-    (setq grass-mode-keywords 
-          (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
-                      font-lock-keyword-face))))
-    
-
+;; grass-p-comp likely now broken, needs attention:
 (defun grass-p-comp (pairs completion)
   "set the completion string/function for the parameter of command"
   (dolist (p pairs)
@@ -398,7 +397,7 @@ Defaults to the currently active location and mapset."
             (skip-syntax-forward "^ ")
             (setq end (point))
             (if (not (string-match "=" (buffer-substring start end)))
-                (list start end (cdr (assoc command grass-commands)) :exclusive 'no)
+                (list start end (cadr (assoc command grass-commands)) :exclusive 'no)
               (grass-complete-parameters
                command 
                (buffer-substring start (search-backward "="))
@@ -422,7 +421,7 @@ Defaults to the currently active location and mapset."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (third (assoc (concat parameter "=") (assoc command grass-commands)))))
+  (let ((collection (second (assoc parameter (cadr (assoc command grass-commands))))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
@@ -469,7 +468,12 @@ already active."
                                                  (cdr grass-location)) 
                                                 grass-mapset ))))
 
-  ;; (grass-init-command-list) ;; currently broken, need to reimplement using xml parser.
+  ;; TODO: this is painfully slow now. Needs to be cached.
+  (setq grass-commands (grass-parse-command-list))
+
+  (setq grass-mode-keywords 
+          (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
+                      font-lock-keyword-face)))
 
   (switch-to-buffer (process-buffer grass-process))
   (set-process-window-size grass-process (window-height) (window-width))
@@ -559,6 +563,7 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
   "Send the grass process the quit command, so it will clean up before exiting.
 The transcript of the current session is automatically saved (or appended) to a file in
 $grassdata/log"
+  ;; TODO: This should be converted to a buffer-local kill-buffer-hook!
   (interactive)
   
   (if (y-or-n-p "Kill *GRASS* process buffer?")
@@ -570,7 +575,8 @@ $grassdata/log"
               (unless (file-exists-p grass-log-dir)
                 (mkdir grass-log-dir))
               (append-to-file (point-min) (point-max) log-file))) 
-        (kill-buffer))))
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer)))))
 
 (defun grass-update-prompt ()
   "Updates the grass prompt."
