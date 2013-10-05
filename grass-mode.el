@@ -164,6 +164,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 ;; Initializations ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
+;;g.parser
 (defun grass-parse-command-list ()
   "Run each grass binary with the --interface-description option, parsing the output to
   generate the completion data for grass-commands.
@@ -179,14 +180,24 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
   possible values get a cdr of nil."
 
   (let* ((bin-dir (concat gisbase "/bin/"))
-         (bins (directory-files bin-dir))
+         (bins (remove "g.parser" (directory-files bin-dir)))
+         ;; g.parser has no interface description, FFS!
          command-list)
-
+    
     (dolist (bin (cddr bins))           ; drop the '.' and '..' entries
       (push
        (grass-get-bin-params bin)
        command-list))
     command-list))
+
+(defun grass-get-bin-params-tmp (bin)
+  "Run bin with the option --interface-description, parsing the output to produce a single
+  list element for use in grass-commands. See grass-parse-command-list"
+  (let* ((help-file (make-temp-file "grass-mode")))
+    (comint-send-string grass-process (concat "touch " help-file bin ".lck\n"))
+    (y-or-n-p "continue? ")
+    (comint-send-string grass-process (concat "rm " help-file bin ".lck\n"))
+    1))
 
 (defun grass-get-bin-params (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
@@ -194,11 +205,15 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
   (let* ((help-file (make-temp-file "grass-mode"))
          (intdesc 
           (progn 
-            (comint-send-string grass-process (concat bin " --interface-description > "
-                                                      help-file "\n" ))
-            (sleep-for 1)
+            (process-send-string grass-process 
+                                 (concat bin " --interface-description > "
+                                         help-file "\n")) 
+            
+            (while (< (nth 7 (file-attributes help-file)) 1)
+              (sleep-for 1))
             (with-temp-buffer 
               (insert-file help-file)
+              (delete-file help-file)
               (libxml-parse-xml-region (point-min) (point-max))))))
     (list bin
           (let (par-list)
@@ -451,6 +466,18 @@ already active."
   ;; initializations
   (setenv "GRASS_PAGER" "cat")
   (setenv "GRASS_VERBOSE" "0")
+
+  (setq grass-doc-files         ; The list of grass help files
+        (delete nil (mapcar #'(lambda (x) 
+                                (if (string-match-p "html$" x)
+                                    x))
+                            (directory-files grass-doc-dir)))
+        grass-doc-table)
+  
+  (mapc #'(lambda (x) 
+            (push (cons (substring x 0 -5)
+                        (concat grass-doc-dir x)) grass-doc-table))
+        grass-doc-files)
 
   ;; Don't modify the path more than once!
   (unless (member (concat gisbase "/bin") exec-path)
