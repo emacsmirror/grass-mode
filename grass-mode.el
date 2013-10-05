@@ -182,9 +182,9 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
       grass-process nil       ; The active Grass process
       grass-mapset nil        ; The currently active grass mapset
       grass-help nil          ; The buffer where the grass help is found
-      gisbase                 ; The top-level directory containing bin and scripts directories
-      grass-program           ; The grass executable
-      grass-doc-dir)           ; The location of the Grass html documentation
+      gisbase nil             ; The top-level directory containing bin and scripts directories
+      grass-program nil       ; The grass executable
+      grass-doc-dir nil)      ; The location of the Grass html documentation
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Initializations ;;
