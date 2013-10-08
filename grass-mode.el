@@ -55,8 +55,8 @@
   "MAPCAR for multiple sequences.
 Included to obviate the need for cl.el."
   (if (not (memq nil xs))
-    (cons (apply f (mapcar 'car xs))
-      (apply 'grass-mapcar* f (mapcar 'cdr xs)))))
+      (cons (apply f (mapcar 'car xs))
+            (apply 'grass-mapcar* f (mapcar 'cdr xs)))))
 
 ;; Oops - this was supposed to replace member* in cl, but it is not
 ;; self-contained yet!
@@ -115,8 +115,10 @@ prog is the user-readable name from `grass-program-alist'"
 grass-program-alist."
   (customize-push-and-save 'grass-completion-lookup-table
                            (list (list prog
-                                       (grass-parse-command-list)))))
-                                 
+                                       (grass-parse-command-list))))
+  (grass-update-completions prog grass-command-updates)
+  (customize-save-variable 'grass-completion-lookup-table grass-completion-lookup-table))
+
 (defcustom grassdata "~/grassdata"
   "The directory where grass locations are stored."
   :group 'grass-mode)
@@ -137,7 +139,7 @@ Normal bash prompt expansions are available, such as:
 \\w - the current working directory
 \\W - the  basename  of the current working directory"
   :link '(url-link :tag "Bash Prompt Escapes"
-  "http://tldp.org/HOWTO/Bash-Prompt-HOWTO/bash-prompt-escape-sequences.html") 
+                   "http://tldp.org/HOWTO/Bash-Prompt-HOWTO/bash-prompt-escape-sequences.html") 
   :group 'grass-mode)
 
 (defcustom grass-prompt-2 "> "
@@ -192,7 +194,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 
 (defun grass-parse-command-list ()
   "Run each grass binary with the --interface-description option, parsing the output to
-  generate the completion data for grass-commands.
+  generate the completion data for grass-command.
 
   The return value, used for grass-commands, is a list of the form:
 
@@ -208,8 +210,8 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
          (bins (remove "r.mapcalc"
                        (remove "r3.mapcalc" 
                                (remove "g.parser" (directory-files bin-dir)))))
-               ;; g.parser has no interface description in 7.0, FFS!
-               ;; r.mapcalc and r3.mapcalc don't have i-d in 6.4
+         ;; g.parser has no interface description in 7.0, FFS!
+         ;; r.mapcalc and r3.mapcalc don't have i-d in 6.4
          command-list)
     
     (dolist (bin (cddr bins))           ; drop the '.' and '..' entries
@@ -248,13 +250,23 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
                         par-list)))
             par-list))))
 
-;; grass-p-comp likely now broken, needs attention:
-(defun grass-p-comp (pairs completion)
-  "set the completion string/function for the parameter of command"
-  (dolist (p pairs)
-    (setcdr
-     (cdr (assoc (concat (second p) "=") (assoc (first p) grass-commands)))
-     (cons completion nil))))
+(defun grass-update-completions (grass-prog com-param-compl)
+  "Set the COMPLetion string/function for the PARAMeter of COMmand.
+`com-param-compl' is a list, each element is a list of the form (com-param compl).
+`com-param' is a list, each element is a list of the form (com param)."
+
+  (dolist (com-param com-param-compl)
+    (dolist (p (car com-param))
+      (if (assoc (second p) 
+                 (cadr 
+                  (assoc (first p) 
+                         (cadr (assoc grass-prog grass-completion-lookup-table)))))
+          (setcdr
+           (assoc (second p) 
+                  (cadr 
+                   (assoc (first p) 
+                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
+           (cdr com-param))))))
 
 (defun grass-get-location ()
   "Prompt the user for the location."
@@ -377,7 +389,7 @@ Defaults to the currently active location and mapset."
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
       (grass-mapcar* #'(lambda (x y) (cons x y))
-               location-names location-dirs))))
+                     location-names location-dirs))))
 
 (defun grass-mapset-list (&optional location)
   "List the mapsets for a location, defaulting to the current location."
@@ -409,7 +421,7 @@ Defaults to the currently active location and mapset."
       ;; this command, we haven't finished entering it:
       (if (and (>= pt (match-beginning 1))
                (<= pt (match-end 1)))
-        ;; still entering the initial command, so try completing Grass commands
+          ;; still entering the initial command, so try completing Grass commands
           (progn
             (goto-char pt)
             (let* ((bol (save-excursion (comint-bol) (point)))
@@ -506,7 +518,7 @@ already active."
   
   (mapc #'(lambda (x) 
             (push (cons (substring x 0 -5)
-                        (concat grass-doc-dir x)) grass-doc-table))
+                        (concat grass-doc-dir "/" x)) grass-doc-table))
         grass-doc-files)
 
   ;; Don't modify the path more than once!
@@ -536,8 +548,8 @@ take several minutes)")
       (message "Command completion unavailable")))
 
   (setq grass-mode-keywords 
-          (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
-                      font-lock-keyword-face)))
+        (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
+                    font-lock-keyword-face)))
 
   (switch-to-buffer (process-buffer grass-process))
   (set-process-window-size grass-process (window-height) (window-width))
@@ -554,8 +566,8 @@ take several minutes)")
   "Change process window size. Used to update process output when Emacs window size changes."
   (when (derived-mode-p 'comint-mode)
     (set-process-window-size (get-buffer-process (current-buffer))
-                         (window-height)
-                         (window-width))))
+                             (window-height)
+                             (window-width))))
 
 (define-derived-mode igrass-mode shell-mode "igrass"
   "Major mode for interacting with a Grass in an inferior
@@ -724,7 +736,7 @@ process. Based on Shell-script mode.
   "If grass is running, switch to that window. If not, close w3m windows."
   (interactive)
   (if (and (processp grass-process)
-               (buffer-name (process-buffer grass-process)))
+           (buffer-name (process-buffer grass-process)))
       (switch-to-buffer (process-buffer grass-process))
     (w3m-close-window)))
 
@@ -745,6 +757,65 @@ process. Based on Shell-script mode.
       (if PREF 
           (w3m-goto-url-new-session dest)
         (w3m-goto-url dest)))))
+
+;; Fleshing out the command completion options.
+
+(setq grass-command-updates 
+      '(((("v.proj" "input")) grass-complete-foreign-vectors)
+        ((("d.vect" "map")) grass-vector-maps)
+        ((("v.proj" "input")) grass-complete-foreign-vectors)
+        ((("r.proj" "input")) grass-complete-foreign-rasters)
+        ((("g.mapset" "mapset") ("r.proj" "mapset")
+          ("v.proj" "mapset")) grass-complete-foreign-mapsets)
+        ((("g.proj" "location") ("g.mapset" "location")
+          ("r.proj" "location") ("v.proj" "location")) grass-location-list)
+        ((("g.region" "region")) grass-regions)
+        ((("d.rast" "map") ("g.remove" "rast") ("g.region" "rast") ("g.rename" "rast")
+          ("r.patch" "input") ("r.colors" "map") 
+          ("r.shaded.relief" "map") ;; Grass64
+          ("r.shaded.relief" "input") ;; Grass70
+          ("r.mask" "input") ("r.resample" "input") ("r.out.ascii" "input") 
+          ("r.report" "map") ("r.reclass" "input") ("r.stats" "input") ("r.univar" "map"))
+         grass-raster-maps) 
+        ((("d.vect" "map") ("d.extract" "input") ("d.path" "map") ("d.vect.chart" "map")
+          ("d.vect.thematic" "map") ("d.what.vect" "map") ("d.zoom" "vector") 
+          ("g.rename" "vect") ("g.remove" "vect") ("g.region" "vect")
+          ("r.carve" "vect") ("r.drain" "vector_points") ("r.le.setup" "vect") 
+          ("r.region" "vector") ("r.volume" "centroids") 
+          ("v.buffer" "input") ("v.build" "map") ("v.build.polylines" "input")
+          ("v.category" "input") ("v.centroids" "input") ("v.class" "map")
+          ("v.clean" "input") ("v.colors" "map") ("v.convert" "input")
+          ("v.db.addcol" "map") ("v.db.addtable" "map") ("v.db.connect" "map")
+          ("v.db.dropcol" "map") ("v.db.droptable" "map") ("v.db.join" "map")
+          ("v.db.renamecol" "map") ("v.db.select" "map") ("v.db.update" "map")
+          ("v.delaunay" "input") ("v.digit" "map") ("v.dissolve" "input")
+          ("v.distance" "to") ("v.distance" "from") ("v.drape" "input")
+          ("v.edit" "bgmap") ("v.edit" "map") ("v.extract" "input")
+          ("v.extrude" "input") ("v.generalize" "input") ("v.hull" "input")
+          ("v.info" "map") ("v.kcv" "input") ("v.kernel" "net") ("v.kernel" "input")
+          ("v.label" "map") ("v.label.sa" "map") ("v.lidar.correction" "input")
+          ("v.lidar.edgedetection" "input") ("v.lidar.growing" "input")
+          ("v.lrs.create" "points") ("v.lrs.create" "in_lines") ("v.lrs.label" "input") 
+          ("v.lrs.segment" "input") ("v.lrs.where" "points") ("v.lrs.where" "lines") 
+          ("v.neighbors" "input") ("v.net.alloc" "input") ("v.net" "points") 
+          ("v.net" "input") ("v.net.iso" "input") ("v.net.path" "input") 
+          ("v.net.salesman" "input") ("v.net.steiner" "input") ("v.net.visibility" "input") 
+          ("v.normal" "map") ("v.out.ascii" "input") ("v.out.dxf" "input") 
+          ("v.out.gpsbabel" "input") ("v.out.ogr" "input") ("v.out.pov" "input") 
+          ("v.out.svg" "input") ("v.out.vtk" "input") ("v.outlier" "qgis") 
+          ("v.outlier" "input") ("v.overlay" "binput") ("v.overlay" "ainput") 
+          ("v.parallel" "input") ("v.patch" "input") ("v.rast.stats" "vector")
+          ("v.reclass" "input") ("v.report" "map") ("v.sample" "input")
+          ("v.segment" "input") ("v.select" "binput") ("v.select" "ainput")
+          ("v.split" "input") ("v.support" "map") ("v.surf.bspline" "sparse")
+          ("v.surf.bspline" "input") ("v.surf.idw" "input") ("v.surf.rst" "input")
+          ("v.to.3d" "input") ("v.to.db" "map") ("v.to.points" "input")
+          ("v.to.rast" "input") ("v.to.rast3" "input") ("v.transform" "input")
+          ("v.type" "input") ("v.univar" "map") ("v.vol.rst" "input")
+          ("v.voronoi" "input") ("v.what" "map") ("v.what.rast" "vector")
+          ("v.what.vect" "vector")) 
+         grass-vector-maps)
+        ((("db.columns" "table")) grass-all-maps)))
 
 (provide 'grass-mode)
 
