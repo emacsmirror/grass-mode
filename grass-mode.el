@@ -37,7 +37,6 @@
 
 ;;; TODO:
 
-;; Fix grass-member so that it doesn't require cl.el
 ;; Make sgrass into a minor-mode
 ;; Make w3m customizations into a minor-mode
 ;; History browser?
@@ -49,30 +48,7 @@
 ;;;;;;;;;;;;;;;;;;
 
 (require 'shell)
-(require 'cl) ;; fix grass-member so this isn't necessary!!
-
-(defun grass-mapcar* (f &rest xs)
-  "MAPCAR for multiple sequences.
-Included to obviate the need for cl.el."
-  (if (not (memq nil xs))
-      (cons (apply f (mapcar 'car xs))
-            (apply 'grass-mapcar* f (mapcar 'cdr xs)))))
-
-;; Oops - this was supposed to replace member* in cl, but it is not
-;; self-contained yet!
-(defun grass-member (cl-item cl-list &rest cl-keys)
-  "Find the first occurrence of ITEM in LIST.
-Return the sublist of LIST whose car is ITEM.
-Keywords supported:  :test :test-not :key
- (fn ITEM LIST [KEYWORD VALUE]...)"
-  (if cl-keys
-      (cl--parsing-keywords (:test :test-not :key :if :if-not) ()
-	(while (and cl-list (not (cl--check-test cl-item (car cl-list))))
-	  (setq cl-list (cdr cl-list)))
-	cl-list)
-    (if (and (numberp cl-item) (not (integerp cl-item)))
-	(member cl-item cl-list)
-      (memq cl-item cl-list))))
+(require 'cl-lib) 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization Variables ;;
@@ -388,7 +364,8 @@ Defaults to the currently active location and mapset."
                            (directory-files grassdata t "^[^.]")))
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
-      (grass-mapcar* #'(lambda (x y) (cons x y))
+      ;;(grass-mapcar* #'(lambda (x y) (cons x y))
+      (cl-mapcar #'(lambda (x y) (cons x y))
                      location-names location-dirs))))
 
 (defun grass-mapset-list (&optional location)
@@ -436,7 +413,8 @@ Defaults to the currently active location and mapset."
         ;; we have a complete command, so lookup parameters in the
         ;; grass-commands table:
         (let ((command (match-string-no-properties 1)))
-          (when (grass-member command grass-commands :test 'string= :key 'car)
+          ;;(when (grass-member command grass-commands :test 'string= :key 'car)
+          (when (cl-member command grass-commands :test 'string= :key 'car)
             (goto-char pt)
             (skip-syntax-backward "^ ")
             (setq start (point))
@@ -820,3 +798,30 @@ process. Based on Shell-script mode.
 (provide 'grass-mode)
 
 ;;; grass-mode.el ends here
+
+;; The following two functions shouldn't be needed anymore. Keeping them handy just in
+;; case.
+
+;; (defun grass-mapcar* (f &rest xs)
+;;   "MAPCAR for multiple sequences.
+;; Included to obviate the need for cl.el."
+;;   (if (not (memq nil xs))
+;;       (cons (apply f (mapcar 'car xs))
+;;             (apply 'grass-mapcar* f (mapcar 'cdr xs)))))
+
+;; Oops - this was supposed to replace member* in cl, but it is not
+;; self-contained yet!
+;; (defun grass-member (cl-item cl-list &rest cl-keys)
+;;   "Find the first occurrence of ITEM in LIST.
+;; Return the sublist of LIST whose car is ITEM.
+;; Keywords supported:  :test :test-not :key
+;;  (fn ITEM LIST [KEYWORD VALUE]...)"
+;;   (if cl-keys
+;;       (cl--parsing-keywords (:test :test-not :key :if :if-not) ()
+;; 	(while (and cl-list (not (cl--check-test cl-item (car cl-list))))
+;; 	  (setq cl-list (cdr cl-list)))
+;; 	cl-list)
+;;     (if (and (numberp cl-item) (not (integerp cl-item)))
+;; 	(member cl-item cl-list)
+;;       (memq cl-item cl-list))))
+
