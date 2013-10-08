@@ -199,9 +199,10 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 (defun grass-get-bin-params (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
   list element for use in grass-commands. See grass-parse-command-list"
-  (let* ((help-file (make-temp-file "grass-mode"))
+  (let* ((help-file (make-temp-file (concat "grass-mode-" bin)))
          (intdesc 
           (progn 
+            (message "parsing %s" bin)
             (process-send-string grass-process 
                                  (concat bin " --interface-description > "
                                          help-file "\n")) 
@@ -231,6 +232,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 `com-param-compl' is a list, each element is a list of the form (com-param compl).
 `com-param' is a list, each element is a list of the form (com param)."
 
+  (message "updating completions...")
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
       (if (assoc (second p) 
@@ -520,14 +522,17 @@ already active."
     (if (yes-or-no-p 
          "Command completion list does not exist. Generate one now? (This will
 take several minutes)")
-        (progn (grass-add-completion grass-name)
-               (setq grass-commands 
+        (progn 
+          (process-send-string grass-process "\n")
+          (grass-add-completion grass-name)
+          (setq grass-commands 
                      (cadr (assoc grass-name grass-completion-lookup-table))))
       (message "Command completion unavailable")))
 
-  (setq grass-mode-keywords 
-        (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
-                    font-lock-keyword-face)))
+  (if (boundp 'grass-commands)
+      (setq grass-mode-keywords 
+            (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
+                        font-lock-keyword-face))))
 
   (switch-to-buffer (process-buffer grass-process))
   (set-process-window-size grass-process (window-height) (window-width))
@@ -570,7 +575,8 @@ the current line.
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
   (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
 
-  (setq font-lock-defaults '(grass-mode-keywords))
+  (if (boundp 'grass-mode-keywords)
+      (setq font-lock-defaults '(grass-mode-keywords)))
 
   (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
