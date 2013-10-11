@@ -362,7 +362,7 @@ Defaults to the currently active location and mapset."
   "Return an alist of grass locations"
   (when grassdata
     (let* ((location-dirs 
-            (remove-if-not 'file-directory-p
+            (cl-remove-if-not 'file-directory-p
                            (directory-files grassdata t "^[^.]")))
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
@@ -376,7 +376,7 @@ Defaults to the currently active location and mapset."
                  location
                grass-location)))
     (mapcar 'file-name-nondirectory
-            (remove-if-not 'file-directory-p
+            (cl-remove-if-not 'file-directory-p
                            (directory-files
                             (cdr loc) t "^[^.]")))))
 
