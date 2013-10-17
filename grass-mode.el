@@ -70,29 +70,14 @@ the name of the binary as it will be presented to the user. BINARY is the full p
 GRASS program. SCRIPT-DIRECTORY is the directory where all the GRASS commands are found.
 DOC-DIRECTORY is the directory where the HTML help files are found."
   :type 'grass-program-alist
-  :group 'grass-mode)
+  :group 'grass-mode
+  :tag "Grass programs alist")
 
 (defcustom grass-completion-lookup-table nil
   "You don't really want to muck about with this by hand.
 If you want to change it, please use `grass-clear-completion' 
 and `grass-add-completion'."
   :group 'grass-mode)
-
-(defun grass-clear-completion (prog)
-  "Clears the completion table associated with the binary named `prog'.
-prog is the user-readable name from `grass-program-alist'"
-  (customize-save-variable 'grass-completion-lookup-table
-                           (remove (assoc prog grass-completion-lookup-table)
-                                   grass-completion-lookup-table)))
-
-(defun grass-add-completion (prog)
-  "Generate and save the completion table for the binary named `prog' in
-grass-program-alist."
-  (customize-push-and-save 'grass-completion-lookup-table
-                           (list (list prog
-                                       (grass-parse-command-list))))
-  (grass-update-completions prog grass-command-updates)
-  (customize-save-variable 'grass-completion-lookup-table grass-completion-lookup-table))
 
 (defcustom grassdata "~/grassdata"
   "The directory where grass locations are stored."
@@ -163,9 +148,9 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
       grass-program nil       ; The grass executable
       grass-doc-dir nil)      ; The location of the Grass html documentation
 
-;;;;;;;;;;;;;;;;;;;;;
-;; Initializations ;;
-;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Initialization functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun grass-parse-command-list ()
   "Run each grass binary with the --interface-description option, parsing the output to
@@ -182,9 +167,10 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
   possible values get a cdr of nil."
 
   (let* ((bin-dir (concat gisbase "/bin/"))
-         (bins (remove "r.mapcalc"
-                       (remove "r3.mapcalc" 
-                               (remove "g.parser" (directory-files bin-dir)))))
+         (bins 
+          ;;(remove "r.mapcalc"
+          ;;(remove "r3.mapcalc" 
+          (remove "g.parser" (directory-files bin-dir)))
          ;; g.parser has no interface description in 7.0, FFS!
          ;; r.mapcalc and r3.mapcalc don't have i-d in 6.4
          command-list)
@@ -193,43 +179,52 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
       (push
        (grass-get-bin-params bin)
        command-list))
+    (message "parsing complete, storing result...")
     command-list))
 
 (defun grass-get-bin-params (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
   list element for use in grass-commands. See grass-parse-command-list"
-  (let* ((help-file (make-temp-file "grass-mode"))
+  (let* ((counter 0)
+         (help-file (make-temp-file (concat "grass-mode-" bin)))
          (intdesc 
           (progn 
+            (message "parsing %s" bin)
             (process-send-string grass-process 
                                  (concat bin " --interface-description > "
                                          help-file "\n")) 
-            
-            (while (< (nth 7 (file-attributes help-file)) 1)
-              (sleep-for 1))
-            (with-temp-buffer 
-              (insert-file help-file)
-              (delete-file help-file)
-              (libxml-parse-xml-region (point-min) (point-max))))))
-    (list bin
-          (let (par-list)
-            (dolist (el (cdr intdesc))
-              (if (eq (car el) 'parameter)
-                  (push (list (cdaadr el)
-                              (if (assoc 'values el)
-                                  (let (val-list)
-                                    (dolist (vals (cddr (assoc 'values el)))
-                                      (push (caddr (caddr vals)) 
-                                            val-list))
-                                    val-list))) 
-                        par-list)))
-            par-list))))
+            (while (and (< counter 5)
+                        (< (nth 7 (file-attributes help-file)) 1))
+              (sleep-for 1)
+              (incf counter))
+            (if (< counter 5)
+                (with-temp-buffer 
+                  (insert-file-contents help-file)
+                  (delete-file help-file)
+                  (libxml-parse-xml-region (point-min) (point-max)))
+              (message "%s parsing failed!!" bin)
+              nil))))
+    (if intdesc
+        (list bin
+              (let (par-list)
+                (dolist (el (cdr intdesc))
+                  (if (eq (car el) 'parameter)
+                      (push (list (cdaadr el)
+                                  (if (assoc 'values el)
+                                      (let (val-list)
+                                        (dolist (vals (cddr (assoc 'values el)))
+                                          (push (caddr (caddr vals)) 
+                                                val-list))
+                                        val-list))) 
+                            par-list)))
+                par-list)))))
 
 (defun grass-update-completions (grass-prog com-param-compl)
   "Set the COMPLetion string/function for the PARAMeter of COMmand.
 `com-param-compl' is a list, each element is a list of the form (com-param compl).
 `com-param' is a list, each element is a list of the form (com param)."
 
+  (message "updating completions...")
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
       (if (assoc (second p) 
@@ -242,6 +237,33 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
                    (assoc (first p) 
                           (cadr (assoc grass-prog grass-completion-lookup-table)))))
            (cdr com-param))))))
+
+(defun grass-flush-completions ()
+  "Clears the completion table for the current grass-program"
+  (interactive)
+  (grass-clear-completions grass-name))
+
+(defun grass-redo-completions ()
+  "Resets the completion table for the current grass-program"
+  (interactive)
+  (grass-flush-completions)
+  (grass-add-completions grass-name))
+
+(defun grass-clear-completions (prog)
+  "Clears the completion table associated with the binary named `prog'.
+prog is the user-readable name from `grass-program-alist'"
+  (customize-save-variable 'grass-completion-lookup-table
+                           (remove (assoc prog grass-completion-lookup-table)
+                                   grass-completion-lookup-table)))
+
+(defun grass-add-completions (prog)
+  "Generate and save the completion table for the binary named `prog' in
+grass-program-alist."
+  (customize-push-and-save 'grass-completion-lookup-table
+                           (list (list prog
+                                       (grass-parse-command-list))))
+  (grass-update-completions prog grass-command-updates)
+  (customize-save-variable 'grass-completion-lookup-table grass-completion-lookup-table))
 
 (defun grass-get-location ()
   "Prompt the user for the location."
@@ -359,7 +381,7 @@ Defaults to the currently active location and mapset."
   "Return an alist of grass locations"
   (when grassdata
     (let* ((location-dirs 
-            (remove-if-not 'file-directory-p
+            (cl-remove-if-not 'file-directory-p
                            (directory-files grassdata t "^[^.]")))
            (location-names
             (mapcar 'file-name-nondirectory location-dirs)))
@@ -373,7 +395,7 @@ Defaults to the currently active location and mapset."
                  location
                grass-location)))
     (mapcar 'file-name-nondirectory
-            (remove-if-not 'file-directory-p
+            (cl-remove-if-not 'file-directory-p
                            (directory-files
                             (cdr loc) t "^[^.]")))))
 
@@ -519,14 +541,17 @@ already active."
     (if (yes-or-no-p 
          "Command completion list does not exist. Generate one now? (This will
 take several minutes)")
-        (progn (grass-add-completion grass-name)
-               (setq grass-commands 
+        (progn 
+          (process-send-string grass-process "\n")
+          (grass-add-completions grass-name)
+          (setq grass-commands 
                      (cadr (assoc grass-name grass-completion-lookup-table))))
       (message "Command completion unavailable")))
 
-  (setq grass-mode-keywords 
-        (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
-                    font-lock-keyword-face)))
+  (if (boundp 'grass-commands)
+      (setq grass-mode-keywords 
+            (list (cons (concat "\\<" (regexp-opt (mapcar 'car grass-commands)) "\\>")
+                        font-lock-keyword-face))))
 
   (switch-to-buffer (process-buffer grass-process))
   (set-process-window-size grass-process (window-height) (window-width))
@@ -569,7 +594,8 @@ the current line.
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
   (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
 
-  (setq font-lock-defaults '(grass-mode-keywords))
+  (if (boundp 'grass-mode-keywords)
+      (setq font-lock-defaults '(grass-mode-keywords)))
 
   (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
