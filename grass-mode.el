@@ -25,15 +25,11 @@
 
 ;;; Commentary:
 
-;; When installed via Emacs' packaging facility, grass-mode should
-;; require only minimal configuration. Add (require 'grass-mode) to your
-;; .emacs file, and check the grass-mode customization group to ensure
-;; that the paths are set properly.
+;; To install, put grass-mode.el in your load path and add 
+;; (require 'grass-mode) to your .emacs.
 
-;; If you have downloaded grass-mode via the bitbucket repository,
-;; you'll need to make sure the files are all in one directory, and that
-;; directory is in your load path. Then proceed as described in the
-;; previous paragraph.
+;; Check the customization options in the grass-mode group to make sure
+;; Emacs can find your Grass exectuables and help files.
 
 ;;; TODO:
 
@@ -42,6 +38,7 @@
 ;; History browser?
 ;; per-location logging?
 ;; per-location scripting support (add to exec-path)?
+;; add completion for flags as well as parameters
 
 ;;;;;;;;;;;;;;;;;;
 ;; Dependencies ;;
@@ -56,7 +53,7 @@
 
 (defgroup grass-mode nil 
   "Running GRASS GIS from within an Emacs buffer."
-  :version "24.2.50.1")
+  :version "24.3.50.1")
 
 (define-widget 'grass-program-alist 'lazy
   "Format of `grass-grass-program-alist'."
@@ -76,7 +73,9 @@ DOC-DIRECTORY is the directory where the HTML help files are found."
   :group 'grass-mode)
 
 (defcustom grass-completion-lookup-table nil
-  "You don't really want to muck about with this by hand. Please ignore this."
+  "You don't really want to muck about with this by hand.
+If you want to change it, please use `grass-clear-completion' 
+and `grass-add-completion'."
   :group 'grass-mode)
 
 (defun grass-clear-completion (prog)
