@@ -244,6 +244,26 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 
 ;;; Completion setup ;;;
 
+;; Code to use for saving the completion table:
+;; (defun dump-vars-to-file (varlist filename)
+;;   "simplistic dumping of variables in VARLIST to a file FILENAME"
+;;   (save-excursion
+;;     (let ((buf (find-file-noselect filename)))
+;;       (set-buffer buf)
+;;       (erase-buffer)
+;;       (dump varlist buf)
+;;       (save-buffer)
+;;       (kill-buffer))))
+
+;; (defun dump (varlist buffer)
+;;   "insert into buffer the setq statement to recreate the variables in VARLIST"
+;;   (loop for var in varlist do
+;;         (print (list 'setq var (list 'quote (symbol-value var)))
+;;                buffer)))
+
+;; (dump (list 'grass-completion-lookup-table) (current-buffer))
+
+
 (defun grass-parse-command-list ()
   "Run each grass binary with the --interface-description option, parsing the output to
   generate the completion data for grass-command.
