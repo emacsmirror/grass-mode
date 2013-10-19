@@ -76,11 +76,10 @@ DOC-DIRECTORY is the directory where the HTML help files are found."
   :group 'grass-mode
   :tag "Grass programs alist")
 
-(defcustom grass-completion-lookup-table nil
-  "You don't really want to muck about with this by hand.
-If you want to change it, please use `grass-flush-completions' 
-and `grass-redo-completions'."
-  :group 'grass-mode)
+(defcustom grass-completion-file
+            (locate-user-emacs-file "grass-completions")
+            "Default name of file to store completion table in."
+            :type 'file)
 
 (defcustom grass-grassdata "~/grassdata"
   "The directory where grass locations are stored."
@@ -180,10 +179,13 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 (defvar grass-mode-keywords 
   nil "Keywords to use for keyword font lock in grass mode")
 
+(defvar grass-completion-lookup-table nil
+  "You don't really want to muck about with this by hand.
+If you want to change it, please use `grass-flush-completions' 
+and `grass-redo-completions'.")
+
 (defvar grass-command-updates 
       '(((("v.proj" "input")) grass-complete-foreign-vectors)
-        ((("d.vect" "map")) grass-vector-maps)
-        ((("v.proj" "input")) grass-complete-foreign-vectors)
         ((("r.proj" "input")) grass-complete-foreign-rasters)
         ((("g.mapset" "mapset") ("r.proj" "mapset")
           ("v.proj" "mapset")) grass-complete-foreign-mapsets)
@@ -194,7 +196,7 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
           ("r.patch" "input") ("r.colors" "map") 
           ("r.shaded.relief" "map") ;; Grass64
           ("r.shaded.relief" "input") ;; Grass70
-          ("r.mask" "input") ("r.resample" "input") ("r.out.ascii" "input") 
+          ("r.mask" "input") ("r.null" "map") ("r.resample" "input") ("r.out.ascii" "input") 
           ("r.report" "map") ("r.reclass" "input") ("r.stats" "input") ("r.univar" "map"))
          grass-raster-maps) 
         ((("d.vect" "map") ("d.extract" "input") ("d.path" "map") ("d.vect.chart" "map")
@@ -245,24 +247,42 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 ;;; Completion setup ;;;
 
 ;; Code to use for saving the completion table:
-;; (defun dump-vars-to-file (varlist filename)
-;;   "simplistic dumping of variables in VARLIST to a file FILENAME"
-;;   (save-excursion
-;;     (let ((buf (find-file-noselect filename)))
-;;       (set-buffer buf)
-;;       (erase-buffer)
-;;       (dump varlist buf)
-;;       (save-buffer)
-;;       (kill-buffer))))
+(defun grass-write-completions-to-file ()
+  "Write grass-completion-lookup-table to grass-completion-file
+http://stackoverflow.com/questions/2321904/elisp-how-to-save-data-in-a-file/2322164#2322164"
+  (save-excursion
+    (let ((buf (find-file-noselect grass-completion-file)))
+      (set-buffer buf)
+      (erase-buffer)
+      (grass-dump (list 'grass-completion-lookup-table) buf)
+      (save-buffer)
+      (kill-buffer))))
+        
 
-;; (defun dump (varlist buffer)
-;;   "insert into buffer the setq statement to recreate the variables in VARLIST"
-;;   (loop for var in varlist do
-;;         (print (list 'setq var (list 'quote (symbol-value var)))
-;;                buffer)))
+(defun grass-dump (varlist buffer)
+  "insert into buffer the setq statement to recreate the variables in VARLIST"
+  (loop for var in varlist do
+        (print (list 'setq var (list 'quote (symbol-value var)))
+               buffer)))
 
-;; (dump (list 'grass-completion-lookup-table) (current-buffer))
-
+(defun grass-read-completions ()
+  "Reads the grass-completion-lookup-table from file.
+If the file doesn't exist, offer to reparse the commands."
+  (if (not (file-exists-p grass-completion-file))
+      (if (yes-or-no-p 
+           "Command completion file does not exist. Generate one now? (This will
+take several minutes)")
+          (grass-add-completions grass-name)
+        (message "Command completion unavailable"))
+    (load-file grass-completion-file)
+    (if (not (assoc grass-name grass-completion-lookup-table))
+        (if (yes-or-no-p 
+             "Command completion table does not exist. Generate one now? (This will
+take several minutes)")
+            (grass-add-completions grass-name)
+          (message "Command completion unavailable"))
+      (setq grass-commands 
+            (cadr (assoc grass-name grass-completion-lookup-table))))))
 
 (defun grass-parse-command-list ()
   "Run each grass binary with the --interface-description option, parsing the output to
@@ -364,18 +384,22 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 (defun grass-clear-completions (prog)
   "Clears the completion table associated with the binary named `prog'.
 prog is the user-readable name from `grass-program-alist'"
-  (customize-save-variable 'grass-completion-lookup-table
-                           (remove (assoc prog grass-completion-lookup-table)
-                                   grass-completion-lookup-table)))
+  (setq grass-completion-lookup-table 
+        (remove (assoc prog grass-completion-lookup-table)
+                grass-completion-lookup-table))
+  (grass-write-completions-to-file))
 
 (defun grass-add-completions (prog)
   "Generate and save the completion table for the binary named `prog' in
 grass-program-alist."
-  (customize-push-and-save 'grass-completion-lookup-table
-                           (list (list prog
-                                       (grass-parse-command-list))))
+  (process-send-string grass-process "\n")
+  (push (list prog
+              (grass-parse-command-list))
+        grass-completion-lookup-table)
   (grass-update-completions prog grass-command-updates)
-  (customize-save-variable 'grass-completion-lookup-table grass-completion-lookup-table))
+  (grass-write-completions-to-file)
+  (setq grass-commands 
+        (cadr (assoc grass-name grass-completion-lookup-table))))
 
 ;;; User prompts ;;;
 
@@ -644,22 +668,12 @@ already active."
                (buffer-name (process-buffer grass-process)))
     (setq grass-location (grass-get-location))
     (setq grass-mapset (grass-get-mapset))
-    (setq grass-process (start-process "grass" "*grass*" grass-program "-text"
+    (setq grass-process (start-process "grass" (concat "*" grass-name "*") grass-program "-text"
                                        (concat  (file-name-as-directory
                                                  (cdr grass-location)) 
                                                 grass-mapset ))))
 
-  (if (assoc grass-name grass-completion-lookup-table)
-      (setq grass-commands (cadr (assoc grass-name grass-completion-lookup-table)))
-    (if (yes-or-no-p 
-         "Command completion list does not exist. Generate one now? (This will
-take several minutes)")
-        (progn 
-          (process-send-string grass-process "\n")
-          (grass-add-completions grass-name)
-          (setq grass-commands 
-                     (cadr (assoc grass-name grass-completion-lookup-table))))
-      (message "Command completion unavailable")))
+  (grass-read-completions)
 
   (if (boundp 'grass-commands)
       (setq grass-mode-keywords 
