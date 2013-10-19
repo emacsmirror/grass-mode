@@ -261,7 +261,7 @@ http://stackoverflow.com/questions/2321904/elisp-how-to-save-data-in-a-file/2322
 
 (defun grass-dump (varlist buffer)
   "insert into buffer the setq statement to recreate the variables in VARLIST"
-  (loop for var in varlist do
+  (cl-loop for var in varlist do
         (print (list 'setq var (list 'quote (symbol-value var)))
                buffer)))
 
@@ -328,7 +328,7 @@ take several minutes)")
             (while (and (< counter 5)
                         (< (nth 7 (file-attributes help-file)) 1))
               (sleep-for 1)
-              (incf counter))
+              (cl-incf counter))
             (if (< counter 5)
                 (with-temp-buffer 
                   (insert-file-contents help-file)
@@ -341,11 +341,11 @@ take several minutes)")
               (let (par-list)
                 (dolist (el (cdr intdesc))
                   (if (eq (car el) 'parameter)
-                      (push (list (cdaadr el)
+                      (push (list (cl-cdaadr el)
                                   (if (assoc 'values el)
                                       (let (val-list)
                                         (dolist (vals (cddr (assoc 'values el)))
-                                          (push (caddr (caddr vals)) 
+                                          (push (cl-caddr (cl-caddr vals)) 
                                                 val-list))
                                         val-list))) 
                             par-list)))
@@ -359,14 +359,14 @@ take several minutes)")
   (message "updating completions...")
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
-      (if (assoc (second p) 
+      (if (assoc (cl-second p) 
                  (cadr 
-                  (assoc (first p) 
+                  (assoc (cl-first p) 
                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
           (setcdr
-           (assoc (second p) 
+           (assoc (cl-second p) 
                   (cadr 
-                   (assoc (first p) 
+                   (assoc (cl-first p) 
                           (cadr (assoc grass-prog grass-completion-lookup-table)))))
            (cdr com-param))))))
 
@@ -603,7 +603,7 @@ Defaults to the currently active location and mapset."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (second (assoc parameter (cadr (assoc command grass-commands))))))
+  (let ((collection (cl-second (assoc parameter (cadr (assoc command grass-commands))))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
@@ -890,7 +890,7 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
   (interactive "c\nP")
   (let ((dest 
          (concat "file://" grass-doc-dir "/"
-                 (case ind
+                 (cl-case ind
                    (?h "index.html")
                    (?v "vector.html")
                    (?r "raster.html")
