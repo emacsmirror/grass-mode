@@ -4,10 +4,8 @@
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
 ;; Version: 0.1
-;; Package-Requires: 
+;; Package-Requires: ((cl-lib "0.2"))
 ;; Keywords: GRASS, GIS
-
-;; Package-Requires: ((shell) (cl-lib "1.0"))
 
 ;; This file is not part of GNU Emacs
 
@@ -56,7 +54,7 @@
   "Running GRASS GIS from within an Emacs buffer."
   :group 'Programming
   :group 'External
-  :version "24.3.50.1")
+  :version "0.1")
 
 (define-widget 'grass-program-alist 'lazy
   "Format of `grass-grass-program-alist'."
