@@ -124,6 +124,21 @@ Set this to nil to turn off logging."
   :group 'grass-mode
   :set-after '(grass-grassdata))
 
+;;; Note that grass-set-w3m-help has to be defined for the customization features to work,
+;;; so autoload it here!
+
+;;;###autoload
+(defun grass-set-w3m-help (opt value)
+  (if (eq value t)
+      (if (not (require 'w3m nil t))
+          (message "w3m must be installed in order to use grass-help-w3m!")
+        (set-default opt value)
+        (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
+        (define-key w3m-mode-map "q" 'grass-close-w3m-window)
+        (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
+        (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
+    (set-default opt value)))
+
 ;;;###autoload
 (defcustom grass-help-w3m nil 
   "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
@@ -874,17 +889,6 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
 
 ;; This should be a minor mode for w3m buffers that are visiting
 ;; grass help files!
-
-(defun grass-set-w3m-help (opt value)
-  (if (eq value t)
-      (if (not (require 'w3m nil t))
-          (message "w3m must be installed in order to use grass-help-w3m!")
-        (set-default opt value)
-        (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
-        (define-key w3m-mode-map "q" 'grass-close-w3m-window)
-        (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
-        (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
-    (set-default opt value)))
 
 (defun grass-close-w3m-window ()
   "If grass is running, switch to that window. If not, close w3m windows."
