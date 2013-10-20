@@ -3,7 +3,7 @@
 ;; Copyright (C) Tyler Smith 2013
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
-;; Version: 0.1
+;; Version: 0.9
 ;; Package-Requires: ((cl-lib "0.2"))
 ;; Keywords: GRASS, GIS
 
@@ -55,7 +55,7 @@
   "Running GRASS GIS from within an Emacs buffer."
   :group 'Programming
   :group 'External
-  :version "0.1")
+  :version "0.9")
 
 ;;;###autoload
 (define-widget 'grass-program-alist 'lazy
