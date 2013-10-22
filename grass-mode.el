@@ -3,7 +3,7 @@
 ;; Copyright (C) Tyler Smith 2013
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
-;; Version: 0.9
+;; Version: 0.2
 ;; Package-Requires: ((cl-lib "0.2"))
 ;; Keywords: GRASS, GIS
 
@@ -52,7 +52,7 @@
   "Running GRASS GIS from within an Emacs buffer."
   :group 'Programming
   :group 'External
-  :version "0.9")
+  :version "0.2")
 
 ;;;###autoload
 (define-widget 'grass-program-alist 'lazy
@@ -391,6 +391,8 @@ take several minutes)")
 `com-param-compl' is a list, each element is a list of the form (com-param compl).
 `com-param' is a list, each element is a list of the form (com param)."
 
+  ;; This is wrong! Needs to be updated to place the completion function in the third
+  ;; spot, rather than the second!
   (message "updating completions...")
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
@@ -638,7 +640,7 @@ Defaults to the currently active location and mapset."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (cl-second (assoc parameter (caddr (assoc command grass-commands))))))
+  (let ((collection (cl-third (assoc parameter (caddr (assoc command grass-commands))))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
