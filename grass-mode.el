@@ -389,7 +389,9 @@ take several minutes)")
 (defun grass-update-completions (grass-prog com-param-compl)
   "Set the COMPLetion string/function for the PARAMeter of COMmand.
 `com-param-compl' is a list, each element is a list of the form (com-param compl).
-`com-param' is a list, each element is a list of the form (com param)."
+`com-param' is a list, each element is a list of the form (com param).
+Note that this function alters the list stored in grass-completion-lookup-table, it does
+not directly alter the contents of the active grass-commands list."
 
   ;; This is wrong! Needs to be updated to place the completion function in the third
   ;; spot, rather than the second!
@@ -401,10 +403,11 @@ take several minutes)")
                   (assoc (cl-first p) 
                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
           (setcdr
-           (assoc (cl-second p) 
-                  (caddr 
-                   (assoc (cl-first p) 
-                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
+           (cdr
+            (assoc (cl-second p) 
+                   (caddr 
+                    (assoc (cl-first p) 
+                           (cadr (assoc grass-prog grass-completion-lookup-table))))))
            (cdr com-param))))))
 
 (defun grass-flush-completions ()
