@@ -3,7 +3,7 @@
 ;; Copyright (C) Tyler Smith 2013
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
-;; Version: 0.1
+;; Version: 0.2
 ;; Package-Requires: ((cl-lib "0.2"))
 ;; Keywords: GRASS, GIS
 
@@ -52,7 +52,7 @@
   "Running GRASS GIS from within an Emacs buffer."
   :group 'Programming
   :group 'External
-  :version "0.1")
+  :version "0.2")
 
 ;;;###autoload
 (define-widget 'grass-program-alist 'lazy
@@ -300,21 +300,17 @@ take several minutes)")
 
   The return value, used for grass-commands, is a list of the form:
 
-  ((command-one
-     ((parameter-one (value1 value2)) 
-      (parameter-two nil)))
-   (command-two nil))
+  ((command-one description
+     ((parameter-one description (value1 value2)) 
+      (parameter-two description nil)))
+   (command-two description nil))
 
   Commands with no parameters have a cdr of nil. Parameters without a fixed list of
   possible values get a cdr of nil."
 
   (let* ((bin-dir (concat grass-gisbase "/bin/"))
          (bins 
-          ;;(remove "r.mapcalc"
-          ;;(remove "r3.mapcalc" 
           (remove "g.parser" (directory-files bin-dir)))
-         ;; g.parser has no interface description in 7.0, FFS!
-         ;; r.mapcalc and r3.mapcalc don't have i-d in 6.4
          command-list)
     
     (dolist (bin (cddr bins))           ; drop the '.' and '..' entries
@@ -337,47 +333,79 @@ take several minutes)")
                                          help-file "\n")) 
             (while (and (< counter 5)
                         (< (nth 7 (file-attributes help-file)) 1))
+              ;; help-file is usually produced instantly, but OS-level issues may
+              ;; occasionally delay this. If the file is still empty, wait one second and
+              ;; then retry. Note that some commands do not support
+              ;; --interface-description. So after 5 times through this loop, help-file
+              ;; will still be empty, so we move on and ignore them.
               (sleep-for 1)
               (cl-incf counter))
-            (if (< counter 5)
+            (if (< counter 5)           ; counter is >= 5 only if help-file was never written
                 (with-temp-buffer 
                   (insert-file-contents help-file)
                   (delete-file help-file)
                   (libxml-parse-xml-region (point-min) (point-max)))
               (message "%s parsing failed!!" bin)
               nil))))
+    ;; TODO: write some xml utilities to clear up the mess that follows!
     (if intdesc
         (list bin
+              (if (assoc 'label (cddr intdesc)) 
+                  (grass-fixup-string-whitespace
+                   (cl-third (assoc 'label (cddr intdesc))))
+                (if (assoc 'description (cddr intdesc)) 
+                  (grass-fixup-string-whitespace
+                   (cl-third (assoc 'description (cddr intdesc))))))
               (let (par-list)
                 (dolist (el (cdr intdesc))
                   (if (eq (car el) 'parameter)
                       (push (list (cl-cdaadr el)
+                                  (if (assoc 'label (cddr el))
+                                      (grass-fixup-string-whitespace 
+                                       (cl-third (assoc 'label (cddr el))))
+                                    (if (assoc 'description (cddr el))
+                                        (grass-fixup-string-whitespace 
+                                         (cl-third (assoc 'description (cddr el))))
+                                      nil))
                                   (if (assoc 'values el)
                                       (let (val-list)
                                         (dolist (vals (cddr (assoc 'values el)))
                                           (push (cl-caddr (cl-caddr vals)) 
                                                 val-list))
                                         val-list))) 
-                            par-list)))
+                            par-list)
+                    (if (eq (car el) 'flag)
+                        (push (list (concat "-" (cdr  (assoc 'name (cl-second el)))) 
+                                    (grass-fixup-string-whitespace
+                                     (if (assoc 'label (cddr el))
+                                       (cl-third (assoc 'label (cddr el)))
+                                     (if (assoc 'description (cddr el))
+                                         (cl-third (assoc 'description (cddr el)))
+                                       nil)))
+                                    nil)
+                              par-list))))
                 par-list)))))
 
 (defun grass-update-completions (grass-prog com-param-compl)
   "Set the COMPLetion string/function for the PARAMeter of COMmand.
 `com-param-compl' is a list, each element is a list of the form (com-param compl).
-`com-param' is a list, each element is a list of the form (com param)."
+`com-param' is a list, each element is a list of the form (com param).
+Note that this function alters the list stored in grass-completion-lookup-table, it does
+not directly alter the contents of the active grass-commands list."
 
   (message "updating completions...")
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
       (if (assoc (cl-second p) 
-                 (cadr 
+                 (caddr 
                   (assoc (cl-first p) 
                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
           (setcdr
-           (assoc (cl-second p) 
-                  (cadr 
-                   (assoc (cl-first p) 
-                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
+           (cdr
+            (assoc (cl-second p) 
+                   (caddr 
+                    (assoc (cl-first p) 
+                           (cadr (assoc grass-prog grass-completion-lookup-table))))))
            (cdr com-param))))))
 
 (defun grass-flush-completions ()
@@ -589,7 +617,7 @@ Defaults to the currently active location and mapset."
             (skip-syntax-forward "^ ")
             (setq end (point))
             (if (not (string-match "=" (buffer-substring start end)))
-                (list start end (cadr (assoc command grass-commands)) :exclusive 'no)
+                (list start end (caddr (assoc command grass-commands)) :exclusive 'no) ;; cadr => caddr
               (grass-complete-parameters
                command 
                (buffer-substring start (search-backward "="))
@@ -613,7 +641,7 @@ Defaults to the currently active location and mapset."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (cl-second (assoc parameter (cadr (assoc command grass-commands))))))
+  (let ((collection (cl-third (assoc parameter (caddr (assoc command grass-commands))))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
@@ -850,8 +878,7 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
   `((,(kbd "C-c C-v") . grass-view-help)
     (,(kbd "C-c C-n") . grass-send-line-and-step)
     (,(kbd "C-c C-l") . grass-change-location)
-    (,(kbd "C-c C-r") . grass-send-region)
-    ("\t" . completion-at-point))
+    (,(kbd "C-c C-r") . grass-send-region))
 ;;  (require 'cl)
 ;;  (load "cl-seq")
   (add-hook 'completion-at-point-functions 'sgrass-complete-commands nil t)
@@ -912,6 +939,17 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
       (if PREF 
           (w3m-goto-url-new-session dest)
         (w3m-goto-url dest)))))
+
+;;;;;;;;;;;;;;;
+;; Utilities ;;
+;;;;;;;;;;;;;;;
+
+(defun grass-fixup-string-whitespace (string)
+  (replace-regexp-in-string 
+               "\n" ""
+               (replace-regexp-in-string 
+                "^[ \t\n]*" "" 
+                string)))
 
 (provide 'grass-mode)
 
