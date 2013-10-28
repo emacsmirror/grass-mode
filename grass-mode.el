@@ -393,8 +393,6 @@ take several minutes)")
 Note that this function alters the list stored in grass-completion-lookup-table, it does
 not directly alter the contents of the active grass-commands list."
 
-  ;; This is wrong! Needs to be updated to place the completion function in the third
-  ;; spot, rather than the second!
   (message "updating completions...")
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
