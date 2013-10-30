@@ -597,6 +597,16 @@ Defaults to the currently active location and mapset."
         (match-string-no-properties 1) ; possibly a complete command!
         ))))
 
+(defun grass-current-parameter ()
+  "Retrieve the current parameter.
+This assumes there is a complete command already."
+  (save-excursion 
+    (let ((pt (point)))
+      (skip-syntax-backward "^ ")
+      (when (looking-at "\\S +=")
+        (re-search-forward ".+[^=]" pt t)
+        (match-string-no-properties 0)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main completion functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -722,15 +732,16 @@ Defaults to the currently active location and mapset."
 ;; Eldoc ;;
 ;;;;;;;;;;;
 
-(defun grass-get-doc-string ()
-  "Retrieve the current command. If it is a command, and has a docstring, return the
-docstring. Otherwise nil"
-  (let ((command (grass-current-command))
-        data)
-    (when command
-      (setq data (assoc command grass-commands))
-      (if data
-          (cl-second data)))))
+(defun grass-eldoc-function ()
+  "Retrieve the docstring for the current parameter, or command if no parameter, or nil."
+  (let* ((command (grass-current-command))
+         (param (if command (grass-current-parameter)))
+         data)
+    (cond ((and param (assoc param (cl-third (assoc command grass-commands))))
+           (cl-second (assoc param (cl-third (assoc command grass-commands)))))
+          ((and command (assoc command grass-commands))
+           (cl-second (assoc command grass-commands)))
+          (t nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
@@ -806,9 +817,9 @@ already active."
 (defun comint-fix-window-size ()
   "Change process window size. Used to update process output when Emacs window size changes."
   (when (derived-mode-p 'comint-mode)
-    (set-process-window-size (get-buffer-process (current-buffer))
-                             (window-height)
-                             (window-width))))
+    (ignore-errors (set-process-window-size (get-buffer-process (current-buffer))
+                                            (window-height)
+                                            (window-width)))))
 
 (define-derived-mode igrass-mode shell-mode "igrass"
   "Major mode for interacting with a Grass in an inferior
@@ -836,7 +847,7 @@ the current line.
   (if (boundp 'grass-mode-keywords)
       (setq font-lock-defaults '(grass-mode-keywords)))
 
-  (set (make-local-variable 'eldoc-documentation-function) 'grass-get-doc-string)
+  (set (make-local-variable 'eldoc-documentation-function) 'grass-eldoc-function)
   (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
 
