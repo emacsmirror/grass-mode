@@ -575,27 +575,39 @@ Defaults to the currently active location and mapset."
                            (directory-files
                             (cdr loc) t "^[^.]")))))
 
+(defun grass-current-command ()
+  "Retrieve the current command"
+  (save-excursion
+    (let ((pt (point)))
+      (while
+          (progn (beginning-of-line)
+                 (looking-at grass-prompt-2))
+        (forward-line -1))
+      (comint-bol)
+      ;; skip over the first token:
+      (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
+
+      (if (or (not (match-beginning 1)) ;; no match
+              (and (>= pt (match-beginning 1)) 
+                   (<= pt (match-end 1)))
+              ;; the match-string is the current command, so if pt is within
+              ;; this command, we haven't finished entering it:
+              )
+          nil                             ; not a complete command
+        (match-string-no-properties 1) ; possibly a complete command!
+        ))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main completion functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun grass-completion-at-point ()
   (interactive)
-  (let ((pt (point))
+  (let ((command (grass-current-command))
+        (pt (point))
         start end)
-    (save-excursion                     ;; backup to beginning of multi-line command
-      (while (progn (beginning-of-line)
-                    (looking-at grass-prompt-2))
-        (forward-line -1))
-      (comint-bol)
-      ;; skip over the first token:
-      (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
-
-      ;; the match-string is the current command, so if pt is within
-      ;; this command, we haven't finished entering it:
-      (if (and (>= pt (match-beginning 1))
-               (<= pt (match-end 1)))
-          ;; still entering the initial command, so try completing Grass commands
+    (save-excursion 
+      (if (not command)
           (progn
             (goto-char pt)
             (let* ((bol (save-excursion (comint-bol) (point)))
@@ -609,24 +621,72 @@ Defaults to the currently active location and mapset."
 
         ;; we have a complete command, so lookup parameters in the
         ;; grass-commands table:
-        (let ((command (match-string-no-properties 1)))
-          (when (cl-member command grass-commands :test 'string= :key 'car)
-            (goto-char pt)
-            (skip-syntax-backward "^ ")
-            (setq start (point))
-            (skip-syntax-forward "^ ")
-            (setq end (point))
-            (if (not (string-match "=" (buffer-substring start end)))
-                (list start end (caddr (assoc command grass-commands)) :exclusive 'no) ;; cadr => caddr
-              (grass-complete-parameters
-               command 
-               (buffer-substring start (search-backward "="))
-               (progn
-                 (goto-char pt)
-                 (re-search-backward "=\\|,")
-                 (forward-char)
-                 (point))
-               (progn (skip-syntax-forward "^ ") (point))))))))))
+        (when (cl-member command grass-commands :test 'string= :key 'car)
+          (goto-char pt)
+          (skip-syntax-backward "^ ")
+          (setq start (point))
+          (skip-syntax-forward "^ ")
+          (setq end (point))
+          (if (not (string-match "=" (buffer-substring start end)))
+              (list start end (caddr (assoc command grass-commands)) :exclusive 'no)
+            (grass-complete-parameters
+             command 
+             (buffer-substring start (search-backward "="))
+             (progn
+               (goto-char pt)
+               (re-search-backward "=\\|,")
+               (forward-char)
+               (point))
+             (progn (skip-syntax-forward "^ ") (point)))))))))
+
+;; (defun grass-completion-at-point-orig ()
+;;   (interactive)
+;;   (let ((pt (point))
+;;         start end)
+;;     (save-excursion                     ;; backup to beginning of multi-line command
+;;       (while (progn (beginning-of-line)
+;;                     (looking-at grass-prompt-2))
+;;         (forward-line -1))
+;;       (comint-bol)
+;;       ;; skip over the first token:
+;;       (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
+
+;;       ;; the match-string is the current command, so if pt is within
+;;       ;; this command, we haven't finished entering it:
+;;       (if (and (>= pt (match-beginning 1))
+;;                (<= pt (match-end 1)))
+;;           ;; still entering the initial command, so try completing Grass commands
+;;           (progn
+;;             (goto-char pt)
+;;             (let* ((bol (save-excursion (comint-bol) (point)))
+;;                    (eol (save-excursion (end-of-line) (point)))
+;;                    (start (progn (skip-syntax-backward "^ " bol)
+;;                                  (point)))
+;;                    (end (progn (skip-syntax-forward "^ " eol)
+;;                                (point))))
+;;               (list start end grass-commands :exclusive 'no))) 
+;;         ;; if this fails, control passes to comint-completion-at-point
+
+;;         ;; we have a complete command, so lookup parameters in the
+;;         ;; grass-commands table:
+;;         (let ((command (match-string-no-properties 1)))
+;;           (when (cl-member command grass-commands :test 'string= :key 'car)
+;;             (goto-char pt)
+;;             (skip-syntax-backward "^ ")
+;;             (setq start (point))
+;;             (skip-syntax-forward "^ ")
+;;             (setq end (point))
+;;             (if (not (string-match "=" (buffer-substring start end)))
+;;                 (list start end (caddr (assoc command grass-commands)) :exclusive 'no) ;; cadr => caddr
+;;               (grass-complete-parameters
+;;                command 
+;;                (buffer-substring start (search-backward "="))
+;;                (progn
+;;                  (goto-char pt)
+;;                  (re-search-backward "=\\|,")
+;;                  (forward-char)
+;;                  (point))
+;;                (progn (skip-syntax-forward "^ ") (point))))))))))
 
 (defun igrass-complete-commands ()
   "Returns the list of grass programs. I don't know why, but comint-complete finds some
@@ -657,6 +717,20 @@ Defaults to the currently active location and mapset."
            (end (progn (skip-syntax-forward "^ " eol)
                        (point))))
       (list start end grass-commands :exclusive 'no))))
+
+;;;;;;;;;;;
+;; Eldoc ;;
+;;;;;;;;;;;
+
+(defun grass-get-doc-string ()
+  "Retrieve the current command. If it is a command, and has a docstring, return the
+docstring. Otherwise nil"
+  (let ((command (grass-current-command))
+        data)
+    (when command
+      (setq data (assoc command grass-commands))
+      (if data
+          (cl-second data)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
@@ -762,6 +836,7 @@ the current line.
   (if (boundp 'grass-mode-keywords)
       (setq font-lock-defaults '(grass-mode-keywords)))
 
+  (set (make-local-variable 'eldoc-documentation-function) 'grass-get-doc-string)
   (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
 
