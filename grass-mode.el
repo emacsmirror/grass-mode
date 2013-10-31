@@ -320,6 +320,85 @@ take several minutes)")
     (message "parsing complete, storing result...")
     command-list))
 
+;; (defun xml-extract (xml target &optional el)
+;;   (interactive)
+;;   (if el
+;;       (nth el 
+;;            (assoc target xml))
+;;     (assoc target xml)))
+
+(defun grass-get-bin-params-new (bin)
+  "Run bin with the option --interface-description, parsing the output to produce a single
+  list element for use in grass-commands. See grass-parse-command-list"
+  (let* ((counter 0)
+         (help-file (make-temp-file (concat "grass-mode-" bin)))
+         (intdesc 
+          (progn 
+            (message "parsing %s" bin)
+            (process-send-string grass-process 
+                                 (concat bin " --interface-description > "
+                                         help-file "\n")) 
+            (while (and (< counter 5)
+                        (< (nth 7 (file-attributes help-file)) 1))
+              ;; help-file is usually produced instantly, but OS-level issues may
+              ;; occasionally delay this. If the file is still empty, wait one second and
+              ;; then retry. Note that some commands do not support
+              ;; --interface-description. So after 5 times through this loop, help-file
+              ;; will still be empty, so we move on and ignore them.
+              (sleep-for 1)
+              (cl-incf counter))
+            (if (< counter 5)           ; counter is >= 5 only if help-file was never written
+                (with-temp-buffer 
+                  (insert-file-contents help-file)
+                  (delete-file help-file)
+                  (libxml-parse-xml-region (point-min) (point-max)))
+              (message "%s parsing failed!!" bin)
+              nil))))
+    ;; TODO: write some xml utilities to clear up the mess that follows!
+    (when intdesc
+      (let ((param-list
+             (cl-remove-if-not #'(lambda (el) (eq (car el) 'parameter))
+                               (cdr intdesc)))
+            (flag-list
+             (cl-remove-if-not #'(lambda (el) (eq (car el) 'flag))
+                               (cdr intdesc))))
+        (list bin
+              (if (assoc 'label (cddr intdesc)) 
+                  (grass-fixup-string-whitespace
+                   (cl-third (assoc 'label (cddr intdesc))))
+                (if (assoc 'description (cddr intdesc)) 
+                    (grass-fixup-string-whitespace
+                     (cl-third (assoc 'description (cddr intdesc))))))
+              (let (par-list)
+                (dolist (el (cdr intdesc))
+                  (if (eq (car el) 'parameter)
+                      (push (list (cl-cdaadr el)
+                                  (if (assoc 'label (cddr el))
+                                      (grass-fixup-string-whitespace 
+                                       (cl-third (assoc 'label (cddr el))))
+                                    (if (assoc 'description (cddr el))
+                                        (grass-fixup-string-whitespace 
+                                         (cl-third (assoc 'description (cddr el))))
+                                      nil))
+                                  (if (assoc 'values el)
+                                      (let (val-list)
+                                        (dolist (vals (cddr (assoc 'values el)))
+                                          (push (cl-caddr (cl-caddr vals)) 
+                                                val-list))
+                                        val-list))) 
+                            par-list)
+                    (if (eq (car el) 'flag)
+                        (push (list (concat "-" (cdr  (assoc 'name (cl-second el)))) 
+                                    (grass-fixup-string-whitespace
+                                     (if (assoc 'label (cddr el))
+                                         (cl-third (assoc 'label (cddr el)))
+                                       (if (assoc 'description (cddr el))
+                                           (cl-third (assoc 'description (cddr el)))
+                                         nil)))
+                                    nil)
+                              par-list))))
+                par-list))))))
+
 (defun grass-get-bin-params (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
   list element for use in grass-commands. See grass-parse-command-list"
