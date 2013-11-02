@@ -78,7 +78,15 @@ DOC-DIRECTORY is the directory where the HTML help files are found."
 (defcustom grass-completion-file
             (locate-user-emacs-file "grass-completions")
             "Default name of file to store completion table in."
+            :group 'grass-mode
             :type 'file)
+
+;;;###autoload
+(defcustom grass-eldoc-args nil
+  "If non-nil, eldoc displays the arguments of the GRASS function, rather than the
+function description."
+  :group 'grass-mode
+  :type 'sexp)
 
 ;;;###autoload
 (defcustom grass-grassdata "~/grassdata"
@@ -147,7 +155,6 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 
 (defvar igrass-mode-hook nil)
 (defvar sgrass-mode-hook nil)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;      Global Variables       ;;
 ;; (shouldn't be set by users) ;;
@@ -320,14 +327,18 @@ take several minutes)")
     (message "parsing complete, storing result...")
     command-list))
 
-;; (defun xml-extract (xml target &optional el)
-;;   (interactive)
-;;   (if el
-;;       (nth el 
-;;            (assoc target xml))
-;;     (assoc target xml)))
+(defun grass-get-label-or-desc (al)
+  "Returns the text of the label, if present, or the description otherwise, or nil if
+neither are present."
+  (if (assoc 'label (cdr al))
+      (grass-fixup-string-whitespace
+       (cl-third (assoc 'label (cdr al))))
+    (if (assoc 'description (cdr al))
+        (grass-fixup-string-whitespace
+         (cl-third (assoc 'description (cdr al))))
+      nil)))
 
-(defun grass-get-bin-params-new (bin)
+(defun grass-get-bin-params (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
   list element for use in grass-commands. See grass-parse-command-list"
   (let* ((counter 0)
@@ -354,7 +365,6 @@ take several minutes)")
                   (libxml-parse-xml-region (point-min) (point-max)))
               (message "%s parsing failed!!" bin)
               nil))))
-    ;; TODO: write some xml utilities to clear up the mess that follows!
     (when intdesc
       (let ((param-list
              (cl-remove-if-not #'(lambda (el) (eq (car el) 'parameter))
@@ -363,43 +373,29 @@ take several minutes)")
              (cl-remove-if-not #'(lambda (el) (eq (car el) 'flag))
                                (cdr intdesc))))
         (list bin
-              (if (assoc 'label (cddr intdesc)) 
-                  (grass-fixup-string-whitespace
-                   (cl-third (assoc 'label (cddr intdesc))))
-                (if (assoc 'description (cddr intdesc)) 
-                    (grass-fixup-string-whitespace
-                     (cl-third (assoc 'description (cddr intdesc))))))
+              (grass-get-label-or-desc (cdr intdesc))
               (let (par-list)
-                (dolist (el (cdr intdesc))
-                  (if (eq (car el) 'parameter)
-                      (push (list (cl-cdaadr el)
-                                  (if (assoc 'label (cddr el))
-                                      (grass-fixup-string-whitespace 
-                                       (cl-third (assoc 'label (cddr el))))
-                                    (if (assoc 'description (cddr el))
-                                        (grass-fixup-string-whitespace 
-                                         (cl-third (assoc 'description (cddr el))))
-                                      nil))
-                                  (if (assoc 'values el)
-                                      (let (val-list)
-                                        (dolist (vals (cddr (assoc 'values el)))
-                                          (push (cl-caddr (cl-caddr vals)) 
-                                                val-list))
-                                        val-list))) 
-                            par-list)
-                    (if (eq (car el) 'flag)
-                        (push (list (concat "-" (cdr  (assoc 'name (cl-second el)))) 
-                                    (grass-fixup-string-whitespace
-                                     (if (assoc 'label (cddr el))
-                                         (cl-third (assoc 'label (cddr el)))
-                                       (if (assoc 'description (cddr el))
-                                           (cl-third (assoc 'description (cddr el)))
-                                         nil)))
-                                    nil)
-                              par-list))))
+                (dolist (el param-list)
+                  (push (list 
+                         ;; parameter name, the second element of the first slot
+                         (cl-cdaadr el) 
+                         (grass-get-label-or-desc el)
+                         (if (assoc 'values el)
+                             (let (val-list)
+                               (dolist (vals (cddr (assoc 'values el)))
+                                 (push (cl-caddr (cl-caddr vals)) 
+                                       val-list))
+                               val-list))) 
+                        par-list))
+                (dolist (el flag-list)
+                  (push (list 
+                         ;; flag name, the second element of the first slot
+                         (concat "-" (cl-cdaadr el)) 
+                         (grass-get-label-or-desc el)) 
+                        par-list)) 
                 par-list))))))
 
-(defun grass-get-bin-params (bin)
+(defun grass-get-bin-params-old (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
   list element for use in grass-commands. See grass-parse-command-list"
   (let* ((counter 0)
@@ -682,9 +678,12 @@ This assumes there is a complete command already."
   (save-excursion 
     (let ((pt (point)))
       (skip-syntax-backward "^ ")
-      (when (looking-at "\\S +=")
-        (re-search-forward ".+[^=]" pt t)
-        (match-string-no-properties 0)))))
+      (if (looking-at "\\S +=")
+          (progn (re-search-forward ".+[^=]" pt t)
+                 (match-string-no-properties 0))
+        (if (looking-at "-.+")
+            (progn (re-search-forward "-.+" pt t)
+                   (match-string-no-properties 0)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main completion functions ;;
@@ -819,7 +818,12 @@ This assumes there is a complete command already."
     (cond ((and param (assoc param (cl-third (assoc command grass-commands))))
            (cl-second (assoc param (cl-third (assoc command grass-commands)))))
           ((and command (assoc command grass-commands))
-           (cl-second (assoc command grass-commands)))
+           (if grass-eldoc-args
+               (let ((result ""))
+                 (dolist ( el (sort (mapcar 'car (cl-third (assoc command grass-commands))) 'string<))
+                   (setq result (concat result el " ")))
+                 result)
+               (cl-second (assoc command grass-commands))))
           (t nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
