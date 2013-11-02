@@ -78,7 +78,15 @@ DOC-DIRECTORY is the directory where the HTML help files are found."
 (defcustom grass-completion-file
             (locate-user-emacs-file "grass-completions")
             "Default name of file to store completion table in."
+            :group 'grass-mode
             :type 'file)
+
+;;;###autoload
+(defcustom grass-eldoc-args nil
+  "If non-nil, eldoc displays the arguments of the GRASS function, rather than the
+function description."
+  :group 'grass-mode
+  :type 'sexp)
 
 ;;;###autoload
 (defcustom grass-grassdata "~/grassdata"
@@ -147,7 +155,6 @@ browse-url. w3m must be installed separately in your Emacs to use this!"
 
 (defvar igrass-mode-hook nil)
 (defvar sgrass-mode-hook nil)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;      Global Variables       ;;
 ;; (shouldn't be set by users) ;;
@@ -320,7 +327,75 @@ take several minutes)")
     (message "parsing complete, storing result...")
     command-list))
 
+(defun grass-get-label-or-desc (al)
+  "Returns the text of the label, if present, or the description otherwise, or nil if
+neither are present."
+  (if (assoc 'label (cdr al))
+      (grass-fixup-string-whitespace
+       (cl-third (assoc 'label (cdr al))))
+    (if (assoc 'description (cdr al))
+        (grass-fixup-string-whitespace
+         (cl-third (assoc 'description (cdr al))))
+      nil)))
+
 (defun grass-get-bin-params (bin)
+  "Run bin with the option --interface-description, parsing the output to produce a single
+  list element for use in grass-commands. See grass-parse-command-list"
+  (let* ((counter 0)
+         (help-file (make-temp-file (concat "grass-mode-" bin)))
+         (intdesc 
+          (progn 
+            (message "parsing %s" bin)
+            (process-send-string grass-process 
+                                 (concat bin " --interface-description > "
+                                         help-file "\n")) 
+            (while (and (< counter 5)
+                        (< (nth 7 (file-attributes help-file)) 1))
+              ;; help-file is usually produced instantly, but OS-level issues may
+              ;; occasionally delay this. If the file is still empty, wait one second and
+              ;; then retry. Note that some commands do not support
+              ;; --interface-description. So after 5 times through this loop, help-file
+              ;; will still be empty, so we move on and ignore them.
+              (sleep-for 1)
+              (cl-incf counter))
+            (if (< counter 5)           ; counter is >= 5 only if help-file was never written
+                (with-temp-buffer 
+                  (insert-file-contents help-file)
+                  (delete-file help-file)
+                  (libxml-parse-xml-region (point-min) (point-max)))
+              (message "%s parsing failed!!" bin)
+              nil))))
+    (when intdesc
+      (let ((param-list
+             (cl-remove-if-not #'(lambda (el) (eq (car el) 'parameter))
+                               (cdr intdesc)))
+            (flag-list
+             (cl-remove-if-not #'(lambda (el) (eq (car el) 'flag))
+                               (cdr intdesc))))
+        (list bin
+              (grass-get-label-or-desc (cdr intdesc))
+              (let (par-list)
+                (dolist (el param-list)
+                  (push (list 
+                         ;; parameter name, the second element of the first slot
+                         (cl-cdaadr el) 
+                         (grass-get-label-or-desc el)
+                         (if (assoc 'values el)
+                             (let (val-list)
+                               (dolist (vals (cddr (assoc 'values el)))
+                                 (push (cl-caddr (cl-caddr vals)) 
+                                       val-list))
+                               val-list))) 
+                        par-list))
+                (dolist (el flag-list)
+                  (push (list 
+                         ;; flag name, the second element of the first slot
+                         (concat "-" (cl-cdaadr el)) 
+                         (grass-get-label-or-desc el)) 
+                        par-list)) 
+                par-list))))))
+
+(defun grass-get-bin-params-old (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
   list element for use in grass-commands. See grass-parse-command-list"
   (let* ((counter 0)
@@ -575,27 +650,52 @@ Defaults to the currently active location and mapset."
                            (directory-files
                             (cdr loc) t "^[^.]")))))
 
+(defun grass-current-command ()
+  "Retrieve the current command"
+  (save-excursion
+    (let ((pt (point)))
+      (while
+          (progn (beginning-of-line)
+                 (looking-at grass-prompt-2))
+        (forward-line -1))
+      (comint-bol)
+      ;; skip over the first token:
+      (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
+
+      (if (or (not (match-beginning 1)) ;; no match
+              (and (>= pt (match-beginning 1)) 
+                   (<= pt (match-end 1)))
+              ;; the match-string is the current command, so if pt is within
+              ;; this command, we haven't finished entering it:
+              )
+          nil                             ; not a complete command
+        (match-string-no-properties 1) ; possibly a complete command!
+        ))))
+
+(defun grass-current-parameter ()
+  "Retrieve the current parameter.
+This assumes there is a complete command already."
+  (save-excursion 
+    (let ((pt (point)))
+      (skip-syntax-backward "^ ")
+      (if (looking-at "\\S +=")
+          (progn (re-search-forward ".+[^=]" pt t)
+                 (match-string-no-properties 0))
+        (if (looking-at "-.+")
+            (progn (re-search-forward "-.+" pt t)
+                   (match-string-no-properties 0)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main completion functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun grass-completion-at-point ()
   (interactive)
-  (let ((pt (point))
+  (let ((command (grass-current-command))
+        (pt (point))
         start end)
-    (save-excursion                     ;; backup to beginning of multi-line command
-      (while (progn (beginning-of-line)
-                    (looking-at grass-prompt-2))
-        (forward-line -1))
-      (comint-bol)
-      ;; skip over the first token:
-      (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
-
-      ;; the match-string is the current command, so if pt is within
-      ;; this command, we haven't finished entering it:
-      (if (and (>= pt (match-beginning 1))
-               (<= pt (match-end 1)))
-          ;; still entering the initial command, so try completing Grass commands
+    (save-excursion 
+      (if (not command)
           (progn
             (goto-char pt)
             (let* ((bol (save-excursion (comint-bol) (point)))
@@ -609,24 +709,72 @@ Defaults to the currently active location and mapset."
 
         ;; we have a complete command, so lookup parameters in the
         ;; grass-commands table:
-        (let ((command (match-string-no-properties 1)))
-          (when (cl-member command grass-commands :test 'string= :key 'car)
-            (goto-char pt)
-            (skip-syntax-backward "^ ")
-            (setq start (point))
-            (skip-syntax-forward "^ ")
-            (setq end (point))
-            (if (not (string-match "=" (buffer-substring start end)))
-                (list start end (caddr (assoc command grass-commands)) :exclusive 'no) ;; cadr => caddr
-              (grass-complete-parameters
-               command 
-               (buffer-substring start (search-backward "="))
-               (progn
-                 (goto-char pt)
-                 (re-search-backward "=\\|,")
-                 (forward-char)
-                 (point))
-               (progn (skip-syntax-forward "^ ") (point))))))))))
+        (when (cl-member command grass-commands :test 'string= :key 'car)
+          (goto-char pt)
+          (skip-syntax-backward "^ ")
+          (setq start (point))
+          (skip-syntax-forward "^ ")
+          (setq end (point))
+          (if (not (string-match "=" (buffer-substring start end)))
+              (list start end (caddr (assoc command grass-commands)) :exclusive 'no)
+            (grass-complete-parameters
+             command 
+             (buffer-substring start (search-backward "="))
+             (progn
+               (goto-char pt)
+               (re-search-backward "=\\|,")
+               (forward-char)
+               (point))
+             (progn (skip-syntax-forward "^ ") (point)))))))))
+
+;; (defun grass-completion-at-point-orig ()
+;;   (interactive)
+;;   (let ((pt (point))
+;;         start end)
+;;     (save-excursion                     ;; backup to beginning of multi-line command
+;;       (while (progn (beginning-of-line)
+;;                     (looking-at grass-prompt-2))
+;;         (forward-line -1))
+;;       (comint-bol)
+;;       ;; skip over the first token:
+;;       (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
+
+;;       ;; the match-string is the current command, so if pt is within
+;;       ;; this command, we haven't finished entering it:
+;;       (if (and (>= pt (match-beginning 1))
+;;                (<= pt (match-end 1)))
+;;           ;; still entering the initial command, so try completing Grass commands
+;;           (progn
+;;             (goto-char pt)
+;;             (let* ((bol (save-excursion (comint-bol) (point)))
+;;                    (eol (save-excursion (end-of-line) (point)))
+;;                    (start (progn (skip-syntax-backward "^ " bol)
+;;                                  (point)))
+;;                    (end (progn (skip-syntax-forward "^ " eol)
+;;                                (point))))
+;;               (list start end grass-commands :exclusive 'no))) 
+;;         ;; if this fails, control passes to comint-completion-at-point
+
+;;         ;; we have a complete command, so lookup parameters in the
+;;         ;; grass-commands table:
+;;         (let ((command (match-string-no-properties 1)))
+;;           (when (cl-member command grass-commands :test 'string= :key 'car)
+;;             (goto-char pt)
+;;             (skip-syntax-backward "^ ")
+;;             (setq start (point))
+;;             (skip-syntax-forward "^ ")
+;;             (setq end (point))
+;;             (if (not (string-match "=" (buffer-substring start end)))
+;;                 (list start end (caddr (assoc command grass-commands)) :exclusive 'no) ;; cadr => caddr
+;;               (grass-complete-parameters
+;;                command 
+;;                (buffer-substring start (search-backward "="))
+;;                (progn
+;;                  (goto-char pt)
+;;                  (re-search-backward "=\\|,")
+;;                  (forward-char)
+;;                  (point))
+;;                (progn (skip-syntax-forward "^ ") (point))))))))))
 
 (defun igrass-complete-commands ()
   "Returns the list of grass programs. I don't know why, but comint-complete finds some
@@ -657,6 +805,26 @@ Defaults to the currently active location and mapset."
            (end (progn (skip-syntax-forward "^ " eol)
                        (point))))
       (list start end grass-commands :exclusive 'no))))
+
+;;;;;;;;;;;
+;; Eldoc ;;
+;;;;;;;;;;;
+
+(defun grass-eldoc-function ()
+  "Retrieve the docstring for the current parameter, or command if no parameter, or nil."
+  (let* ((command (grass-current-command))
+         (param (if command (grass-current-parameter)))
+         data)
+    (cond ((and param (assoc param (cl-third (assoc command grass-commands))))
+           (cl-second (assoc param (cl-third (assoc command grass-commands)))))
+          ((and command (assoc command grass-commands))
+           (if grass-eldoc-args
+               (let ((result ""))
+                 (dolist ( el (sort (mapcar 'car (cl-third (assoc command grass-commands))) 'string<))
+                   (setq result (concat result el " ")))
+                 result)
+               (cl-second (assoc command grass-commands))))
+          (t nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Starting Grass and the modes ;;
@@ -732,9 +900,9 @@ already active."
 (defun comint-fix-window-size ()
   "Change process window size. Used to update process output when Emacs window size changes."
   (when (derived-mode-p 'comint-mode)
-    (set-process-window-size (get-buffer-process (current-buffer))
-                             (window-height)
-                             (window-width))))
+    (ignore-errors (set-process-window-size (get-buffer-process (current-buffer))
+                                            (window-height)
+                                            (window-width)))))
 
 (define-derived-mode igrass-mode shell-mode "igrass"
   "Major mode for interacting with a Grass in an inferior
@@ -762,6 +930,7 @@ the current line.
   (if (boundp 'grass-mode-keywords)
       (setq font-lock-defaults '(grass-mode-keywords)))
 
+  (set (make-local-variable 'eldoc-documentation-function) 'grass-eldoc-function)
   (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
 
