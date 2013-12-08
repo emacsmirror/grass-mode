@@ -472,13 +472,13 @@ not directly alter the contents of the active grass-commands list."
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
       (if (assoc (cl-second p) 
-                 (caddr 
+                 (cl-caddr 
                   (assoc (cl-first p) 
                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
           (setcdr
            (cdr
             (assoc (cl-second p) 
-                   (caddr 
+                   (cl-caddr 
                     (assoc (cl-first p) 
                            (cadr (assoc grass-prog grass-completion-lookup-table))))))
            (cdr com-param))))))
@@ -716,7 +716,7 @@ This assumes there is a complete command already."
           (skip-syntax-forward "^ ")
           (setq end (point))
           (if (not (string-match "=" (buffer-substring start end)))
-              (list start end (caddr (assoc command grass-commands)) :exclusive 'no)
+              (list start end (cl-caddr (assoc command grass-commands)) :exclusive 'no)
             (grass-complete-parameters
              command 
              (buffer-substring start (search-backward "="))
@@ -789,7 +789,7 @@ This assumes there is a complete command already."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (cl-third (assoc parameter (caddr (assoc command grass-commands))))))
+  (let ((collection (cl-third (assoc parameter (cl-caddr (assoc command grass-commands))))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
@@ -946,13 +946,6 @@ the current line.
                               (car grass-location) grass-mapset))
   (grass-update-prompt))
 
-;; my-today is a utility function defined in my .emacs. Most people
-;; won't have that already, so add it for everyone else here:
-(unless (fboundp 'my-today)
-  (defun my-today ()
-    "Returns todays date in the format yyyy-mm-dd"
-    (car (split-string (shell-command-to-string "date +%Y-%m-%d") "\n"))))
-
 (defun grass-quit ()
   "Send the grass process the quit command, so it will clean up before exiting.
 The transcript of the current session is automatically saved (or appended) to a file in
@@ -965,7 +958,8 @@ $grass-grassdata/log"
         (if (string= (process-status grass-process) "run")
             (comint-send-string grass-process "exit\n"))
         (if grass-log-dir
-            (let ((log-file (concat grass-log-dir "/" (my-today) ".grass")))
+            (let ((log-file (concat grass-log-dir "/" 
+                                    (car (split-string (shell-command-to-string "date +%Y-%m-%d") "\n")) ".grass")))
               (unless (file-exists-p grass-log-dir)
                 (mkdir grass-log-dir))
               (append-to-file (point-min) (point-max) log-file))) 
