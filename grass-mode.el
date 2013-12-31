@@ -3,7 +3,7 @@
 ;; Copyright (C) Tyler Smith 2013
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
-;; Version: 0.2
+;; Version: 0.3
 ;; Package-Requires: ((cl-lib "0.2"))
 ;; Keywords: GRASS, GIS
 
@@ -129,29 +129,14 @@ Set this to nil to turn off logging."
   :group 'grass-mode
   :set-after '(grass-grassdata))
 
-;;; Note that grass-set-w3m-help has to be defined for the customization features to work,
-;;; so autoload it here!
-
 ;;;###autoload
-(defun grass-set-w3m-help (opt value)
-  (if (eq value t)
-      (if (not (require 'w3m nil t))
-          (message "w3m must be installed in order to use grass-help-w3m!")
-        (set-default opt value)
-        (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
-        (define-key w3m-mode-map "q" 'grass-close-w3m-window)
-        (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
-        (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
-    (set-default opt value)))
-
-;;;###autoload
-(defcustom grass-help-w3m nil 
-  "If non-nil, use w3m to browse help docs within Emacs. Otherwise, use
-browse-url. w3m must be installed separately in your Emacs to use this!"
-  :type 'boolean
-  :require 'w3m
-  :group 'grass-mode
-  :set 'grass-set-w3m-help)
+(defcustom grass-help-browser 'external
+  "Which browser to use to view GRASS help files.
+A symbol (not a string!): `external' for the external web browser called via browse-url;
+`eww' for the built-in Emacs eww web-browser;
+`w3m' for the w3m.el interface to w3m (must be installed separately)"
+  :type 'symbol
+  :group 'grass-mode)
 
 (defvar igrass-mode-hook nil)
 (defvar sgrass-mode-hook nil)
@@ -395,71 +380,6 @@ neither are present."
                         par-list)) 
                 par-list))))))
 
-(defun grass-get-bin-params-old (bin)
-  "Run bin with the option --interface-description, parsing the output to produce a single
-  list element for use in grass-commands. See grass-parse-command-list"
-  (let* ((counter 0)
-         (help-file (make-temp-file (concat "grass-mode-" bin)))
-         (intdesc 
-          (progn 
-            (message "parsing %s" bin)
-            (process-send-string grass-process 
-                                 (concat bin " --interface-description > "
-                                         help-file "\n")) 
-            (while (and (< counter 5)
-                        (< (nth 7 (file-attributes help-file)) 1))
-              ;; help-file is usually produced instantly, but OS-level issues may
-              ;; occasionally delay this. If the file is still empty, wait one second and
-              ;; then retry. Note that some commands do not support
-              ;; --interface-description. So after 5 times through this loop, help-file
-              ;; will still be empty, so we move on and ignore them.
-              (sleep-for 1)
-              (cl-incf counter))
-            (if (< counter 5)           ; counter is >= 5 only if help-file was never written
-                (with-temp-buffer 
-                  (insert-file-contents help-file)
-                  (delete-file help-file)
-                  (libxml-parse-xml-region (point-min) (point-max)))
-              (message "%s parsing failed!!" bin)
-              nil))))
-    ;; TODO: write some xml utilities to clear up the mess that follows!
-    (if intdesc
-        (list bin
-              (if (assoc 'label (cddr intdesc)) 
-                  (grass-fixup-string-whitespace
-                   (cl-third (assoc 'label (cddr intdesc))))
-                (if (assoc 'description (cddr intdesc)) 
-                  (grass-fixup-string-whitespace
-                   (cl-third (assoc 'description (cddr intdesc))))))
-              (let (par-list)
-                (dolist (el (cdr intdesc))
-                  (if (eq (car el) 'parameter)
-                      (push (list (cl-cdaadr el)
-                                  (if (assoc 'label (cddr el))
-                                      (grass-fixup-string-whitespace 
-                                       (cl-third (assoc 'label (cddr el))))
-                                    (if (assoc 'description (cddr el))
-                                        (grass-fixup-string-whitespace 
-                                         (cl-third (assoc 'description (cddr el))))
-                                      nil))
-                                  (if (assoc 'values el)
-                                      (let (val-list)
-                                        (dolist (vals (cddr (assoc 'values el)))
-                                          (push (cl-caddr (cl-caddr vals)) 
-                                                val-list))
-                                        val-list))) 
-                            par-list)
-                    (if (eq (car el) 'flag)
-                        (push (list (concat "-" (cdr  (assoc 'name (cl-second el)))) 
-                                    (grass-fixup-string-whitespace
-                                     (if (assoc 'label (cddr el))
-                                       (cl-third (assoc 'label (cddr el)))
-                                     (if (assoc 'description (cddr el))
-                                         (cl-third (assoc 'description (cddr el)))
-                                       nil)))
-                                    nil)
-                              par-list))))
-                par-list)))))
 
 (defun grass-update-completions (grass-prog com-param-compl)
   "Set the COMPLetion string/function for the PARAMeter of COMmand.
@@ -727,55 +647,6 @@ This assumes there is a complete command already."
                (point))
              (progn (skip-syntax-forward "^ ") (point)))))))))
 
-;; (defun grass-completion-at-point-orig ()
-;;   (interactive)
-;;   (let ((pt (point))
-;;         start end)
-;;     (save-excursion                     ;; backup to beginning of multi-line command
-;;       (while (progn (beginning-of-line)
-;;                     (looking-at grass-prompt-2))
-;;         (forward-line -1))
-;;       (comint-bol)
-;;       ;; skip over the first token:
-;;       (re-search-forward "\\(\\S +\\)\\s ?" nil t) 
-
-;;       ;; the match-string is the current command, so if pt is within
-;;       ;; this command, we haven't finished entering it:
-;;       (if (and (>= pt (match-beginning 1))
-;;                (<= pt (match-end 1)))
-;;           ;; still entering the initial command, so try completing Grass commands
-;;           (progn
-;;             (goto-char pt)
-;;             (let* ((bol (save-excursion (comint-bol) (point)))
-;;                    (eol (save-excursion (end-of-line) (point)))
-;;                    (start (progn (skip-syntax-backward "^ " bol)
-;;                                  (point)))
-;;                    (end (progn (skip-syntax-forward "^ " eol)
-;;                                (point))))
-;;               (list start end grass-commands :exclusive 'no))) 
-;;         ;; if this fails, control passes to comint-completion-at-point
-
-;;         ;; we have a complete command, so lookup parameters in the
-;;         ;; grass-commands table:
-;;         (let ((command (match-string-no-properties 1)))
-;;           (when (cl-member command grass-commands :test 'string= :key 'car)
-;;             (goto-char pt)
-;;             (skip-syntax-backward "^ ")
-;;             (setq start (point))
-;;             (skip-syntax-forward "^ ")
-;;             (setq end (point))
-;;             (if (not (string-match "=" (buffer-substring start end)))
-;;                 (list start end (caddr (assoc command grass-commands)) :exclusive 'no) ;; cadr => caddr
-;;               (grass-complete-parameters
-;;                command 
-;;                (buffer-substring start (search-backward "="))
-;;                (progn
-;;                  (goto-char pt)
-;;                  (re-search-backward "=\\|,")
-;;                  (forward-char)
-;;                  (point))
-;;                (progn (skip-syntax-forward "^ ") (point))))))))))
-
 (defun igrass-complete-commands ()
   "Returns the list of grass programs. I don't know why, but comint-complete finds some
   but not all of them?"
@@ -897,7 +768,7 @@ already active."
   (add-hook 'completion-at-point-functions 'igrass-complete-commands nil t)
   (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t))
 
-(defun comint-fix-window-size ()
+(defun grass-fix-window-size ()
   "Change process window size. Used to update process output when Emacs window size changes."
   (when (derived-mode-p 'comint-mode)
     (ignore-errors (set-process-window-size (get-buffer-process (current-buffer))
@@ -931,7 +802,7 @@ the current line.
       (setq font-lock-defaults '(grass-mode-keywords)))
 
   (set (make-local-variable 'eldoc-documentation-function) 'grass-eldoc-function)
-  (add-hook 'window-configuration-change-hook 'comint-fix-window-size nil t)
+  (add-hook 'window-configuration-change-hook 'grass-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
 
 (defun grass-change-location ()
@@ -1060,28 +931,53 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
 ;; Help functions ;;
 ;;;;;;;;;;;;;;;;;;;;
 
-(defun grass-view-help (PREFIX)
-  "Prompts the user for a help page to view.
-If w3m is the help browser, when called with a prefix it will open a new tab."
-  (interactive "P")
+(defun grass-view-help ()
+  "Prompts the user for a help page to view."
+  (interactive)
   (let* ((key (completing-read "Grass help: " grass-doc-table nil t))
-         (file (cdr (assoc key grass-doc-table))))
-    (if (not grass-help-w3m)
-        (browse-url (concat "file://" file))
-      (if (buffer-name grass-help) 
-          (if (get-buffer-window grass-help)
-              (select-window (get-buffer-window grass-help))
-            (switch-to-buffer-other-window grass-help))
-        (switch-to-buffer-other-window "*scratch*"))
-      (if PREFIX
-          (w3m-goto-url-new-session (concat "file://" file))
-        (w3m-goto-url (concat "file://" file)))
-      (setq grass-help (current-buffer)))))
+         (file (cdr (assoc key grass-doc-table)))
+         (url (concat "file://" file)))
+    (grass-help-dispatch url)))
+
+(defun grass-help-dispatch (url)
+  "Call the appropriate browser to view the help files."
+  (case grass-help-browser
+    (external
+     (browse-url url))
+    (w3m
+     (if (buffer-name grass-help) 
+         (if (get-buffer-window grass-help)
+             (select-window (get-buffer-window grass-help))
+           (switch-to-buffer-other-window grass-help))
+       (switch-to-buffer-other-window "*scratch*"))
+     (w3m-goto-url url)
+     (setq grass-help (current-buffer))
+     (grass-help-jump-mode))
+    (eww
+     (eww url)
+     (grass-help-jump-mode))))
+
+(define-minor-mode grass-help-jump-mode
+  "Toggle GRASS help jump mode.
+Turns on the keyboard shortcuts for jumping directly to the GRASS help index pages."
+  nil ;; initial value
+  nil ;; indicator line
+  ;; keybindings:
+  '(((kbd "j") . grass-jump-to-help-index))
+  (define-key mode-specific-map "\C-v" 'grass-view-help))
+
+(defun grass-set-w3m-help (opt value)
+  (if (eq value t)
+      (if (not (require 'w3m nil t))
+          (message "w3m must be installed in order to use grass-help-w3m!")
+        (set-default opt value)
+        (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
+        (define-key w3m-mode-map "q" 'grass-close-w3m-window)
+        (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
+        (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
+    (set-default opt value)))
 
 ;;; w3m customizations ;;;
-
-;; This should be a minor mode for w3m buffers that are visiting
-;; grass help files!
 
 (defun grass-close-w3m-window ()
   "If grass is running, switch to that window. If not, close w3m windows."
@@ -1091,9 +987,9 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
       (switch-to-buffer (process-buffer grass-process))
     (w3m-close-window)))
 
-(defun grass-jump-to-help-index (ind &optional PREF)
+(defun grass-jump-to-help-index (ind)
   "Goto a specific grass help index"
-  (interactive "c\nP")
+  (interactive "c")
   (let ((dest 
          (concat "file://" grass-doc-dir "/"
                  (cl-case ind
@@ -1105,9 +1001,7 @@ If w3m is the help browser, when called with a prefix it will open a new tab."
                    (?g "general.html")
                    (t "index.html")))))
     (unless (string= dest (concat "file://" grass-doc-dir))
-      (if PREF 
-          (w3m-goto-url-new-session dest)
-        (w3m-goto-url dest)))))
+      (grass-help-dispatch dest))))
 
 ;;;;;;;;;;;;;;;
 ;; Utilities ;;
