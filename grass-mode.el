@@ -955,7 +955,8 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
      (grass-help-jump-mode))
     (eww
      (eww url)
-     (grass-help-jump-mode))))
+     (message "eww called")
+     (define-key eww-mode-map (kbd "j") 'grass-jump-to-help-index))))
 
 (define-minor-mode grass-help-jump-mode
   "Toggle GRASS help jump mode.
