@@ -301,13 +301,18 @@ take several minutes)")
   possible values get a cdr of nil."
 
   (let* ((bin-dir (concat grass-gisbase "/bin/"))
-         (bins 
+         (script-dir (concat grass-gisbase "/scripts/"))
+         (bins                          
           (remove "g.parser" (directory-files bin-dir)))
+         (scripts (directory-files script-dir))
+         (progs (remove "." (remove ".." (append bins scripts))))
          command-list)
+    ;; note switching from bins to progs - forgot to include scripts in the original
+    ;; version. 
     
-    (dolist (bin (cddr bins))           ; drop the '.' and '..' entries
+    (dolist (prog (cddr progs))
       (push
-       (grass-get-bin-params bin)
+       (grass-get-bin-params prog)
        command-list))
     (message "parsing complete, storing result...")
     command-list))
