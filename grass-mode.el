@@ -199,7 +199,9 @@ and `grass-redo-completions'.")
           ("r.shaded.relief" "map") ;; Grass64
           ("r.shaded.relief" "input") ;; Grass70
           ("r.mask" "input") ("r.null" "map") ("r.resample" "input") ("r.out.ascii" "input") 
-          ("r.report" "map") ("r.reclass" "input") ("r.stats" "input") ("r.univar" "map"))
+          ("r.report" "map") ("r.reclass" "input") ("r.stats" "input")
+          ("r.univar" "map")
+          ("v.what.rast" "raster"))
          grass-raster-maps) 
         ((("d.vect" "map") ("d.extract" "input") ("d.path" "map") ("d.vect.chart" "map")
           ("d.vect.thematic" "map") ("d.what.vect" "map") ("d.zoom" "vector") 
@@ -727,18 +729,21 @@ already active."
           grass-gisbase (nth 2 grass-prog)
           grass-doc-dir (nth 3 grass-prog)))
 
+  (message "grass name: %s" grass-name)
+  
   (setq grass-doc-files         ; The list of grass help files
         (delete nil (mapcar #'(lambda (x) 
                                 (if (string-match-p "html$" x)
                                     x))
                             (directory-files grass-doc-dir)))
         grass-doc-table)
-  
+
   (mapc #'(lambda (x) 
             (push (cons (substring x 0 -5)
                         (concat grass-doc-dir "/" x)) grass-doc-table))
         grass-doc-files)
 
+  (message "doc table set")
   ;; Don't modify the path more than once!
   (unless (member (concat grass-gisbase "/bin") exec-path)
     (add-to-list 'exec-path (concat grass-gisbase "/bin") t))
@@ -923,6 +928,7 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
   `((,(kbd "C-c C-v") . grass-view-help)
     (,(kbd "C-c C-n") . grass-send-line-and-step)
     (,(kbd "C-c C-l") . grass-change-location)
+    (,(kbd "M-TAB")   . completion-at-point)
     (,(kbd "C-c C-r") . grass-send-region))
 ;;  (require 'cl)
 ;;  (load "cl-seq")
@@ -959,7 +965,13 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
      (setq grass-help (current-buffer))
      (grass-help-jump-mode))
     (eww
+     (if (and (one-window-p) (not (string-equal (buffer-name) "*eww*")))
+         (split-window))
+     (if (get-buffer-window "*eww*")
+         (select-window (get-buffer-window "*eww*"))
+       (other-window 1))
      (eww url)
+     ;;(rename-buffer "*eww*")
      (message "eww called")
      (define-key eww-mode-map (kbd "j") 'grass-jump-to-help-index))))
 
