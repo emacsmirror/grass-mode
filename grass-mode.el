@@ -709,10 +709,10 @@ This assumes there is a complete command already."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;###autoload
-(defun grass ()
+(defun grass (PREF)
   "Start the Grass process, or switch to the process buffer if it's
-already active." 
-  (interactive)
+already active. With a prefix force the creation of a new process." 
+  (interactive "P")
 
   ;; initializations
   (setenv "GRASS_PAGER" "cat")
@@ -752,7 +752,8 @@ already active."
 
   ;; Start a new process, or switch to the existing one
   (unless (and (processp grass-process)
-               (buffer-name (process-buffer grass-process)))
+               (buffer-name (process-buffer grass-process))
+               (not PREF))
     (setq grass-location (grass-get-location))
     (setq grass-mapset (grass-get-mapset))
     (setq grass-process (start-process "grass" (concat "*" grass-name "*") grass-program "-text"
