@@ -718,8 +718,19 @@ already active. With a prefix force the creation of a new process."
   (setenv "GRASS_PAGER" "cat")
   (setenv "GRASS_VERBOSE" "0")
 
+  (when (and (boundp ido-ubiquitous-mode)
+             (equal ido-ubiquitous-mode t)
+             (equal ido-ubiquitous-enable-old-style-default t))
+    (read-from-minibuffer "ido-ubiquitous-enable-old-style-default is t - \
+you might want to turn that off in grass-mode! (return to proceed)"))
   (let ((grass-prog 
          (if (> (length grass-grass-programs-alist) 1)
+             ;; NB: there are problems with the completion here if you use
+             ;; ido-ubiquitous and have
+             ;; ido-ubiquitous-enable-old-style-default set to 't'. In that
+             ;; case, the you must enter something, you cannot simply
+             ;; select the default by hitting enter immediately. If this
+             ;; annoys you, (as it does me) customize that variable to nil!
              (assoc (completing-read "Grass program? " grass-grass-programs-alist)
                     grass-grass-programs-alist)
            (car grass-grass-programs-alist))))
@@ -972,7 +983,6 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
          (select-window (get-buffer-window "*eww*"))
        (other-window 1))
      (eww url)
-     ;;(rename-buffer "*eww*")
      (message "eww called")
      (define-key eww-mode-map (kbd "j") 'grass-jump-to-help-index))))
 
