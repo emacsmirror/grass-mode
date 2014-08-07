@@ -4,7 +4,7 @@
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
 ;; Version: 0.3
-;; Package-Requires: ((cl-lib "0.2"))
+;; Package-Requires: ((cl-lib "0.2") (dash "2.8.0"))
 ;; Keywords: GRASS, GIS
 
 ;; This file is not part of GNU Emacs
@@ -34,7 +34,6 @@
 ;; History browser?
 ;; per-location logging?
 ;; per-location scripting support (add to exec-path)?
-;; add completion for flags as well as parameters
 
 ;;;;;;;;;;;;;;;;;;
 ;; Dependencies ;;
@@ -459,23 +458,34 @@ grass-program-alist."
 ;; Completion Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun grass-vector-maps (&optional location mapset)
+(defun grass-vector-maps (&optional location mapset skip-permanent)
   "Returns a list of all the vector maps in location and mapset.
-Defaults to the current location and mapset."
-  (let ((loc (if location location grass-location))
-        (mapst (if mapset mapset grass-mapset)))
-    (let ((map-dir (concat (cdr loc) "/" mapst)))
-      (if (member "vector" (directory-files map-dir))
-          (directory-files (concat map-dir "/" "vector") nil "^[^.]")))))
+Defaults to the current location and mapset. Unless skip-permanent is
+non-nil, the PERMANENT mapset will be included in the list."
+  (let* ((loc (if location location grass-location))
+        (mapst (if mapset mapset grass-mapset))
+        (map-dirs (list (concat (cdr loc) "/" mapst))))
+    (unless (or skip-permanent
+                (string-equal "PERMANENT" mapst))
+      (add-to-list 'map-dirs (concat (cdr loc) "/PERMANENT")))
+    (-mapcat '(lambda (x) (if (member "vector" (directory-files x))
+                             (directory-files (concat x "/" "vector")
+                                              nil "^[^.]")))
+            map-dirs)))
 
-(defun grass-raster-maps (&optional location mapset)
+(defun grass-raster-maps (&optional location mapset skip-permanent)
   "Returns a list of all the raster maps in location and mapset.
 Defaults to the current location and mapset." 
-  (let ((loc (if location location grass-location))
-        (mapst (if mapset mapset grass-mapset)))
-    (let ((map-dir (concat (cdr loc) "/" mapst)))
-      (if (member "cell" (directory-files map-dir))
-          (directory-files (concat map-dir "/" "cell") nil "^[^.]")))))
+  (let* ((loc (if location location grass-location))
+        (mapst (if mapset mapset grass-mapset))
+        (map-dirs (list (concat (cdr loc) "/" mapst))))
+    (unless (or skip-permanent
+                (string-equal "PERMANENT" mapst))
+      (add-to-list 'map-dirs (concat (cdr loc) "/PERMANENT")))
+    (-mapcat '(lambda (x) (if (member "cell" (directory-files x))
+                              (directory-files (concat x "/" "cell")
+                                               nil "^[^.]")))
+             map-dirs))) 
 
 (defun grass-all-maps (&optional location mapset)
   "Returns a list of all maps, raster and vector.
