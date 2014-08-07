@@ -458,45 +458,83 @@ grass-program-alist."
 ;; Completion Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun grass-vector-maps (&optional location mapset skip-permanent)
-  "Returns a list of all the vector maps in location and mapset.
-Defaults to the current location and mapset. Unless skip-permanent is
-non-nil, the PERMANENT mapset will be included in the list."
+(defun grass-all-maps (&optional type location mapset skip-permanent)
+  "Returns a list of maps in the given location and mapset.
+Defaults to both rasters and vectors, unless type is explicitly set to
+either of those strings.
+Defaults to the current location and mapset.
+Includes the PERMANENT mapset unless skip-permanent is non-nil.
+"
   (let* ((loc (if location location grass-location))
-        (mapst (if mapset mapset grass-mapset))
-        (map-dirs (list (concat (cdr loc) "/" mapst))))
+         (mtypes (cond ((and (stringp type)
+                             (string-equal type "raster"))
+                        '("cell"))
+                       ((and (stringp type)
+                             (string-equal type "vector"))
+                        '("vector"))
+                       (t '("vector" "cell"))))
+         (mapst (if mapset mapset grass-mapset))
+         (map-dirs (list (list (concat (cdr loc) "/") mapst))))
     (unless (or skip-permanent
                 (string-equal "PERMANENT" mapst))
-      (add-to-list 'map-dirs (concat (cdr loc) "/PERMANENT")))
-    (-mapcat '(lambda (x) (if (member "vector" (directory-files x))
-                             (directory-files (concat x "/" "vector")
-                                              nil "^[^.]")))
-            map-dirs)))
+      (add-to-list 'map-dirs (list (concat (cdr loc) "/") "PERMANENT")))
+    (-flatten
+     (cl-loop for type in mtypes
+              collect
+              (cl-loop for dir in map-dirs
+                       collect
+                       (if (member type (directory-files (mapconcat 'identity dir "")))
+                           (mapcar #'(lambda (x) (concat x "@" (cadr dir)))
+                                   (directory-files (concat (mapconcat
+                                                             'identity dir
+                                                             "") "/" type)
+                                                    nil "^[^.]"))))))))
+
+(defun grass-vector-maps (&optional location mapset skip-permanent)
+  (grass-all-maps "vector" location mapset skip-permanent))
 
 (defun grass-raster-maps (&optional location mapset skip-permanent)
-  "Returns a list of all the raster maps in location and mapset.
-Defaults to the current location and mapset." 
-  (let* ((loc (if location location grass-location))
-        (mapst (if mapset mapset grass-mapset))
-        (map-dirs (list (concat (cdr loc) "/" mapst))))
-    (unless (or skip-permanent
-                (string-equal "PERMANENT" mapst))
-      (add-to-list 'map-dirs (concat (cdr loc) "/PERMANENT")))
-    (-mapcat '(lambda (x) (if (member "cell" (directory-files x))
-                              (directory-files (concat x "/" "cell")
-                                               nil "^[^.]")))
-             map-dirs))) 
+  (grass-all-maps "raster" location mapset skip-permanent))
 
-(defun grass-all-maps (&optional location mapset)
-  "Returns a list of all maps, raster and vector.
-Defaults to the current location & mapset"
-  (let ((loc (if location location grass-location))
-        (mapst (if mapset mapset grass-mapset)))
-    (let ((map-dir (concat (cdr loc) "/" mapst)))
-      (append (if (member "vector" (directory-files map-dir))
-                  (directory-files (concat map-dir "/" "vector") nil "^[^.]"))
-              (if (member "cell" (directory-files map-dir))
-                  (directory-files (concat map-dir "/" "cell") nil "^[^.]"))))))
+;; (defun grass-vector-maps (&optional location mapset skip-permanent)
+;;   "Returns a list of all the vector maps in location and mapset.
+;; Defaults to the current location and mapset. Unless skip-permanent is
+;; non-nil, the PERMANENT mapset will be included in the list."
+;;   (let* ((loc (if location location grass-location))
+;;         (mapst (if mapset mapset grass-mapset))
+;;         (map-dirs (list (cons (concat (cdr loc) "/") mapst))))
+;;     (unless (or skip-permanent
+;;                 (string-equal "PERMANENT" mapst))
+;;       (add-to-list 'map-dirs (cons (concat (cdr loc) "/") "PERMANENT")))
+;;     (-mapcat '(lambda (x) (if (member "vector" (directory-files x))
+;;                              (directory-files (concat x "/" "vector")
+;;                                               nil "^[^.]")))
+;;             map-dirs)))
+
+;; (defun grass-raster-maps (&optional location mapset skip-permanent)
+;;   "Returns a list of all the raster maps in location and mapset.
+;; Defaults to the current location and mapset." 
+;;   (let* ((loc (if location location grass-location))
+;;         (mapst (if mapset mapset grass-mapset))
+;;         (map-dirs (list (concat (cdr loc) "/" mapst))))
+;;     (unless (or skip-permanent
+;;                 (string-equal "PERMANENT" mapst))
+;;       (add-to-list 'map-dirs (concat (cdr loc) "/PERMANENT")))
+;;     (-mapcat '(lambda (x) (if (member "cell" (directory-files x))
+;;                               (directory-files (concat x "/" "cell")
+;;                                                nil "^[^.]")))
+;;              map-dirs))) 
+
+;; (defun grass-all-maps (&optional location mapset)
+;;   "Returns a list of all maps, raster and vector.
+;; Defaults to the current location & mapset"
+;;   (let ((loc (if location location grass-location))
+;;         (mapst (if mapset mapset grass-mapset)))
+;;     (let ((map-dir (concat (cdr loc) "/" mapst)))
+;;       (append (if (member "vector" (directory-files map-dir))
+;;                   (directory-files (concat map-dir "/" "vector") nil "^[^.]"))
+;;               (if (member "cell" (directory-files map-dir))
+;;                   (directory-files (concat map-dir "/" "cell") nil "^[^.]"))))))
 
 (defun grass-complete-foreign-mapsets()
   "Returns a list of all the vector maps in a different location and mapset"
