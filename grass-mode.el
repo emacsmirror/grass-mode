@@ -398,13 +398,13 @@ not directly alter the contents of the active grass-commands list."
   (dolist (com-param com-param-compl)
     (dolist (p (car com-param))
       (if (assoc (cl-second p) 
-                 (caddr 
+                 (cl-caddr 
                   (assoc (cl-first p) 
                          (cadr (assoc grass-prog grass-completion-lookup-table)))))
           (setcdr
            (cdr
             (assoc (cl-second p) 
-                   (caddr 
+                   (cl-caddr 
                     (assoc (cl-first p) 
                            (cadr (assoc grass-prog grass-completion-lookup-table))))))
            (cdr com-param))))))
@@ -691,7 +691,7 @@ This assumes there is a complete command already."
           (skip-syntax-forward "^ ")
           (setq end (point))
           (if (not (string-match "=" (buffer-substring start end)))
-              (list start end (caddr (assoc command grass-commands)) :exclusive 'no)
+              (list start end (cl-caddr (assoc command grass-commands)) :exclusive 'no)
             (grass-complete-parameters
              command 
              (buffer-substring start (search-backward "="))
@@ -715,7 +715,7 @@ This assumes there is a complete command already."
       (list start end grass-commands :exclusive 'no))))
 
 (defun grass-complete-parameters (command parameter start end)
-  (let ((collection (cl-third (assoc parameter (caddr (assoc command grass-commands))))))
+  (let ((collection (cl-third (assoc parameter (cl-caddr (assoc command grass-commands))))))
     (list start end 
           (if (functionp collection)
               (funcall collection)
