@@ -41,6 +41,7 @@
 
 (require 'shell)
 (require 'cl-lib) 
+(require 'dash)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization Variables ;;
@@ -193,13 +194,14 @@ and `grass-redo-completions'.")
         ((("g.proj" "location") ("g.mapset" "location")
           ("r.proj" "location") ("v.proj" "location")) grass-location-list)
         ((("g.region" "region")) grass-regions)
-        ((("d.rast" "map") ("g.remove" "rast") ("g.region" "rast") ("g.rename" "rast")
+        ((("d.rast" "map") ("d.what.rast" "map")
+          ("g.remove" "rast") ("g.region" "rast") ("g.rename" "rast")
           ("r.patch" "input") ("r.colors" "map") 
           ("r.shaded.relief" "map") ;; Grass64
           ("r.shaded.relief" "input") ;; Grass70
           ("r.mask" "input") ("r.null" "map") ("r.resample" "input") ("r.out.ascii" "input") 
           ("r.report" "map") ("r.reclass" "input") ("r.stats" "input")
-          ("r.univar" "map")
+          ("r.univar" "map") ("r.slope.aspect" "elevation")
           ("v.what.rast" "raster"))
          grass-raster-maps) 
         ((("d.vect" "map") ("d.extract" "input") ("d.path" "map") ("d.vect.chart" "map")
@@ -1024,18 +1026,60 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
      (if (get-buffer-window "*eww*")
          (select-window (get-buffer-window "*eww*"))
        (other-window 1))
+     (add-hook 'eww-mode-hook 'grass-help-jump-mode)
      (eww url)
-     (message "eww called")
-     (define-key eww-mode-map (kbd "j") 'grass-jump-to-help-index))))
+     (message "eww called"))))
 
 (define-minor-mode grass-help-jump-mode
   "Toggle GRASS help jump mode.
-Turns on the keyboard shortcuts for jumping directly to the GRASS help index pages."
+Turns on the keyboard shortcuts for jumping directly to the GRASS help
+index pages. Also adds a shortcut to quickly select from any link on the
+page. 
+
+\\{grass-help-jump-mode-map}
+"
   nil ;; initial value
-  nil ;; indicator line
+  " GHJ" ;; indicator line
   ;; keybindings:
-  '(((kbd "j") . grass-jump-to-help-index))
-  (define-key mode-specific-map "\C-v" 'grass-view-help))
+  '(((kbd "j") . grass-jump-to-help-index)
+    ((kbd "m") . ghj-link-menu)
+    ((kbd "h") . grass-view-help)))
+
+(defun ghj-get-links ()
+  "Returns an alist of all links, with their titles, from the current
+buffer."
+  (let (links)
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let* ((url (get-text-property (point) 'shr-url))
+               (next-change
+                (or (next-property-change (point) (current-buffer))
+                    (point-max)))
+               (title (buffer-substring-no-properties (point) next-change ))
+               (pair (list (list title url))))
+          (if url (setq links (append links pair)))
+          (goto-char next-change))))
+    links))
+
+(defun ghj-link-menu ()
+  "Prompts for a link from the current buffer, then follows it."
+  (interactive)
+  (let ((url (cadr (assoc (completing-read "Link: " (ghj-get-links) nil t)
+                          (ghj-get-links)))))
+    (cond
+     ((not url)
+      (message "No link under point"))
+     ((string-match "^mailto:" url)
+      (browse-url-mail url))
+     ;; This is a #target url in the same page as the current one.
+     ((and (url-target (url-generic-parse-url url))
+	   (eww-same-page-p url eww-current-url))
+      (eww-save-history)
+      (eww-display-html 'utf8 url eww-current-dom))
+     (t
+      (eww-browse-url url)))))
+
 
 (defun grass-set-w3m-help (opt value)
   (if (eq value t)
