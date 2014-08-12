@@ -201,7 +201,7 @@ and `grass-redo-completions'.")
           ("r.shaded.relief" "input") ;; Grass70
           ("r.mask" "input") ("r.null" "map") ("r.resample" "input") ("r.out.ascii" "input") 
           ("r.report" "map") ("r.reclass" "input") ("r.stats" "input")
-          ("r.univar" "map") ("r.slope.aspect" "elevation")
+          ("r.univar" "map") ("r.slope.aspect" "elevation") ("r.horizon" "elevin")
           ("v.what.rast" "raster"))
          grass-raster-maps) 
         ((("d.vect" "map") ("d.extract" "input") ("d.path" "map") ("d.vect.chart" "map")
@@ -1001,7 +1001,9 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
 (defun grass-view-help ()
   "Prompts the user for a help page to view."
   (interactive)
-  (let* ((key (completing-read "Grass help: " grass-doc-table nil t))
+  (let* ((key (completing-read "Grass help: "
+                               grass-doc-table nil t nil nil
+                               (grass-current-command)))
          (file (cdr (assoc key grass-doc-table)))
          (url (concat "file://" file)))
     (grass-help-dispatch url)))
@@ -1043,7 +1045,8 @@ page.
   ;; keybindings:
   '(((kbd "j") . grass-jump-to-help-index)
     ((kbd "m") . ghj-link-menu)
-    ((kbd "h") . grass-view-help)))
+    ((kbd "h") . grass-view-help))
+  (read-only-mode 1))
 
 (defun ghj-get-links ()
   "Returns an alist of all links, with their titles, from the current
