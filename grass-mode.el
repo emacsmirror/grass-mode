@@ -445,11 +445,16 @@ grass-program-alist."
 ;;; User prompts ;;;
 
 (defun grass-get-location ()
-  "Prompt the user for the location."
-  (assoc (completing-read
+  "Prompt the user for the location. Returns a cons with the location name
+in car, the directory path in cdr (both as strings)."
+  (let* ((sel
+         (completing-read
           (format "Grass location (%s): " grass-default-location)
-          (grass-location-list) nil t nil nil grass-default-location)
-         (grass-location-list)))
+          (grass-location-list) nil nil nil nil grass-default-location))
+         (lkup (assoc sel (grass-location-list))))
+    (if lkup lkup ;; if it exists, return the location
+      (if (y-or-n-p (format "Location doesn't exist, create: <%s> ?" sel) )
+          (list sel)))))
 
 (defun grass-get-mapset ()
   "Prompt the user for the mapset for the current location."
@@ -815,12 +820,29 @@ you might want to turn that off in grass-mode! (return to proceed)"))
   (unless (and (processp grass-process)
                (buffer-name (process-buffer grass-process))
                (not PREF))
+
     (setq grass-location (grass-get-location))
-    (setq grass-mapset (grass-get-mapset))
-    (setq grass-process (start-process "grass" (concat "*" grass-name "*") grass-program "-text"
-                                       (concat  (file-name-as-directory
-                                                 (cdr grass-location)) 
-                                                grass-mapset ))))
+
+    (while (not grass-location)
+      (setq grass-location (grass-get-location)))
+
+    (let ((arg1 "")
+          (arg2 "")
+          (arg3 ""))
+      (if (cdr grass-location) ;; location exists
+          (progn (setq grass-mapset (grass-get-mapset))
+                 (setq arg1
+                       (concat 
+                        (file-name-as-directory
+                         (cdr grass-location)) 
+                        grass-mapset)))
+        (setq arg1 "-c") ;; new location
+        (setq arg2 (expand-file-name (read-file-name "Georeferenced file: ")))
+        (setq arg3 (concat
+                    (expand-file-name grass-grassdata) "/"  (car grass-location))))
+      (setq grass-process
+            (start-process "grass" (concat "*" grass-name "*")
+                           grass-program "-text" arg1 arg2 arg3))))
 
   (grass-read-completions)
 
