@@ -773,7 +773,7 @@ already active. With a prefix force the creation of a new process."
   (setenv "GRASS_PAGER" "cat")
   (setenv "GRASS_VERBOSE" "0")
 
-  (when (and (boundp ido-ubiquitous-mode)
+  (when (and (boundp 'ido-ubiquitous-mode)
              (equal ido-ubiquitous-mode t)
              (equal ido-ubiquitous-enable-old-style-default t))
     (read-from-minibuffer "ido-ubiquitous-enable-old-style-default is t - \
