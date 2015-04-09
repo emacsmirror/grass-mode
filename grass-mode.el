@@ -952,7 +952,7 @@ $grass-grassdata/log"
              (comint-send-region grass-process start end)
              (comint-send-string grass-process "\n"))
     (if (y-or-n-p "No running grass process! Start one?")
-        (progn (save-window-excursion (grass))
+        (progn (save-window-excursion (grass nil))
                (grass-send-region start end)))))
 
 (defun grass-prep-process ()
@@ -993,7 +993,7 @@ If sgrass-minor-mode is already active in the buffer, deactivate it."
       (unless (and grass-process (process-live-p grass-process))
         (if (yes-or-no-p "No active grass process. Start one now? ")
             (save-current-buffer
-              (grass))
+              (grass nil))
           (error "No grass process running"))))
   (sgrass-minor-mode))
   
