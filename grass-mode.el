@@ -291,17 +291,17 @@ take several minutes)")
 
 (defun grass-parse-command-list ()
   "Run each grass binary with the --interface-description option, parsing the output to
-  generate the completion data for grass-command.
+generate the completion data for grass-command.
 
-  The return value, used for grass-commands, is a list of the form:
+The return value, used for grass-commands, is a list of the form:
 
   ((command-one description
      ((parameter-one description (value1 value2)) 
       (parameter-two description nil)))
    (command-two description nil))
 
-  Commands with no parameters have a cdr of nil. Parameters without a fixed list of
-  possible values get a cdr of nil."
+Commands with no parameters have a cdr of nil. Parameters without a fixed list of
+possible values get a cdr of nil."
 
   (let* ((bin-dir (concat grass-gisbase "/bin/"))
          (script-dir (concat grass-gisbase "/scripts/"))
@@ -333,7 +333,7 @@ neither are present."
 
 (defun grass-get-bin-params (bin)
   "Run bin with the option --interface-description, parsing the output to produce a single
-  list element for use in grass-commands. See grass-parse-command-list"
+list element for use in grass-commands. See grass-parse-command-list"
   (let* ((counter 0)
          (help-file (make-temp-file (concat "grass-mode-" bin)))
          (intdesc 
@@ -891,6 +891,7 @@ the current line.
   (define-key igrass-mode-map (kbd "C-a") 'comint-bol)
   (define-key igrass-mode-map (kbd "C-c C-l") 'grass-change-location)
   (define-key igrass-mode-map (kbd "C-x k") 'grass-quit)
+  (define-key igrass-mode-map [C-return] 'grass-send-command-and-move)
 
   (if (boundp 'grass-mode-keywords)
       (setq font-lock-defaults '(grass-mode-keywords)))
@@ -898,6 +899,14 @@ the current line.
   (set (make-local-variable 'eldoc-documentation-function) 'grass-eldoc-function)
   (add-hook 'window-configuration-change-hook 'grass-fix-window-size nil t)
   (run-hooks 'igrass-mode-hook))
+
+(defun grass-send-command-and-move ()
+  "Send the command on this line, and move point to the next command."
+  (interactive)
+  (let ((grass-tmp-point (point)))
+    (comint-send-input)
+    (goto-char grass-tmp-point)
+    (comint-next-prompt 1)))
 
 (defun grass-change-location ()
   "Prompt the user for a new location and mapset."
