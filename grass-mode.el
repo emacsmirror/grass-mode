@@ -1097,7 +1097,7 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
 
 (defun grass-help-dispatch (url)
   "Call the appropriate browser to view the help files."
-  (case grass-help-browser
+  (cl-case grass-help-browser
     ('external
      (browse-url url))
     ('w3m
