@@ -64,7 +64,7 @@
 
 ;;;###autoload
 (defcustom grass-grass-programs-alist 
-  '(("Grass64" "/usr/bin/grass" "/usr/lib/grass64" "/usr/share/doc/grass-doc/html"))
+  '(("Grass70" "/usr/bin/grass" "/usr/lib/grass70" "/usr/share/doc/grass-doc/html"))
   "Alist of grass programs with their binary, script directory, and documentation directory. 
 Elements are lists (PROGRAM-NAME BINARY SCRIPT-DIRECTORY DOC-DIRECTORY).
 
