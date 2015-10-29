@@ -41,7 +41,7 @@
 
 (require 'shell)
 (require 'cl-lib) 
-(require 'dash)
+(require 'dash)                         ; using only -flatten
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization Variables ;;
@@ -66,10 +66,53 @@
 (defcustom grass-grass-programs-alist 
   '(("Grass64" "/usr/bin/grass" "/usr/lib/grass64" "/usr/share/doc/grass-doc/html"))
   "Alist of grass programs with their binary, script directory, and documentation directory. 
-Elements are lists (PROGRAM-NAME BINARY SCRIPT-DIRECTORY DOC-DIRECTORY). PROGRAM-NAME is
-the name of the binary as it will be presented to the user. BINARY is the full path to the
-GRASS program. SCRIPT-DIRECTORY is the directory where all the GRASS commands are found.
-DOC-DIRECTORY is the directory where the HTML help files are found."
+Elements are lists (PROGRAM-NAME BINARY SCRIPT-DIRECTORY DOC-DIRECTORY).
+
+PROGRAM-NAME is the name of the binary as it will be presented to
+the user.
+
+BINARY is the full path to the GRASS program.
+
+SCRIPT-DIRECTORY is the directory where all the GRASS commands
+are found.
+
+DOC-DIRECTORY is the directory where the HTML help files are
+found.
+
+The default values are the locations used in Debian GNU Linux.
+
+** Finding the correct locations on other systems **
+
+Linux (and also MAC?):
+
+Binary: from the command line, enter 'which grass' to find the
+binary location. e.g., which grass -> /usr/bin/grass
+
+Script directory: from the command line 'locate bin/d.title'
+should return the path to a file nested under the
+script-directory.
+
+e.g., on my machine 'locate bin/d.title' returns
+/usr/local/grass-7.0.0svn/bin/d.title, so I set the script
+directory to /usr/local/grass-7.0.0svn (trimming off /bin/d.title
+at the end).
+
+Note that if you have multiple versions of GRASS installed,
+you'll get more than one result here. If you have more than one
+version of GRASS, I'll assume you can sort out which one you
+need!
+
+HTML directory: from the command line, 'locate d.title.html'
+should return the path to a file in the HTML directory.
+
+e.g., on my machine, 'locate d.title.html' returns
+/usr/local/grass-7.0.0svn/docs/html, so I set the HTML directory
+to /usr/local/grass-7.0.0svn/docs
+
+Windows:
+
+I don't know. I need a knowledgable Windows user to help me out
+on this one."
   :type 'grass-program-alist
   :group 'grass-mode
   :tag "Grass programs alist")
@@ -77,14 +120,17 @@ DOC-DIRECTORY is the directory where the HTML help files are found."
 ;;;###autoload
 (defcustom grass-completion-file
             (locate-user-emacs-file "grass-completions")
-            "Default name of file to store completion table in."
+            "Default name of file to store completion table in.
+Users don't need to read or edit this file. The primary (only) reason to
+change this variable is if your Emacs configuration does not use .emacs.d/,
+or you have some other reason not to want this file in the default location."
             :group 'grass-mode
             :type 'file)
 
 ;;;###autoload
 (defcustom grass-eldoc-args nil
-  "If non-nil, eldoc displays the arguments of the GRASS function, rather than the
-function description."
+  "If non-nil, eldoc displays the arguments of the GRASS
+function, rather than the function description."
   :group 'grass-mode
   :type 'sexp)
 
@@ -96,12 +142,20 @@ function description."
 
 ;;;###autoload
 (defcustom grass-default-location nil
-  "The default starting location."
+  "The default starting location for GRASS.
+When you start grass-mode, you are prompted for the map location
+you wish to open. If this value is set, it will be offered as the
+default value for the prompt. Whether or not it is set, you can
+still choose any other location in your grassdata directory."
   :group 'grass-mode)
 
 ;;;###autoload
 (defcustom grass-default-mapset "PERMANENT"
-  "The default starting mapset."
+  "The default starting GRASS mapset.
+When you open a new location, you are prompted for the mapset you
+wish to open. If this value is set, it will be offered as the
+default value at this prompt. Whether or not it is set, you can
+still choose any other location in your grassdata directory."
   :group 'grass-mode)
 
 ;;;###autoload
@@ -125,12 +179,14 @@ The same formatting options from grass-prompt are available."
 ;;;###autoload
 (defcustom grass-log-dir (concat grass-grassdata "/logs")
   "The default directory to store interactive grass session logs.
-Set this to nil to turn off logging."
+Set this to nil to turn off logging. If it is not nil, when you quit your
+GRASS session, your transcript will be saved to a file in this directory.
+The file will be named for the current date."
   :group 'grass-mode
   :set-after '(grass-grassdata))
 
 ;;;###autoload
-(defcustom grass-help-browser 'external
+(defcustom grass-help-browser 'eww
   "Which browser to use to view GRASS help files.
 A symbol (not a string!): `external' for the external web browser called via browse-url;
 `eww' for the built-in Emacs eww web-browser;
@@ -1042,9 +1098,9 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
 (defun grass-help-dispatch (url)
   "Call the appropriate browser to view the help files."
   (case grass-help-browser
-    (external
+    ('external
      (browse-url url))
-    (w3m
+    ('w3m
      (if (buffer-name grass-help) 
          (if (get-buffer-window grass-help)
              (select-window (get-buffer-window grass-help))
@@ -1053,7 +1109,7 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
      (w3m-goto-url url)
      (setq grass-help (current-buffer))
      (grass-help-jump-mode))
-    (eww
+    ('eww
      (if (and (one-window-p) (not (string-equal (buffer-name) "*eww*")))
          (split-window))
      (if (get-buffer-window "*eww*")
