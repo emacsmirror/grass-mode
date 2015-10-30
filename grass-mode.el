@@ -30,7 +30,6 @@
 
 ;;; TODO:
 
-;; Make w3m customizations into a minor-mode
 ;; History browser?
 ;; per-location logging?
 ;; per-location scripting support (add to exec-path)?
@@ -52,67 +51,47 @@
   "Running GRASS GIS from within an Emacs buffer."
   :group 'Programming
   :group 'External
-  :version "0.2")
+  :version "0.3")
 
 ;;;###autoload
 (define-widget 'grass-program-alist 'lazy
   "Format of `grass-grass-program-alist'."
   :type '(repeat (group (string :tag "Program name (user-readable)")
                         (file :tag "GRASS executable")
-                        (directory :tag "Script directory")
-                        (directory :tag "HTML documentation directory"))))
+                        (directory :tag "GRASS installation directory"))))
 
 ;;;###autoload
 (defcustom grass-grass-programs-alist 
-  '(("Grass70" "/usr/bin/grass" "/usr/lib/grass70" "/usr/share/doc/grass-doc/html"))
+  '(("Grass70" "/usr/bin/grass" "/usr/lib/grass70"))
   "Alist of grass programs with their binary, script directory, and documentation directory. 
-Elements are lists (PROGRAM-NAME BINARY SCRIPT-DIRECTORY DOC-DIRECTORY).
+Elements are lists (PROGRAM-NAME BINARY INSTALL-DIRECTORY).
 
 PROGRAM-NAME is the name of the binary as it will be presented to
 the user.
 
 BINARY is the full path to the GRASS program.
 
-SCRIPT-DIRECTORY is the directory where all the GRASS commands
-are found.
-
-DOC-DIRECTORY is the directory where the HTML help files are
-found.
+INSTALL-DIRECTORY is the root directory of the GRASS
+installation, where grass-mode will find the bin, scripts and
+doc/html directories.
 
 The default values are the locations used in Debian GNU Linux.
 
 ** Finding the correct locations on other systems **
 
-Linux (and also MAC?):
+As of GRASS70, you can find the location of the INSTALL-DIRECTORY by
+issuing the following command on the command-line:
+
+Linux/Mac:
+grass --config path
+
+Windows:
+C:\>grass70.bat --config path
+
 
 Binary: from the command line, enter 'which grass' to find the
 binary location. e.g., which grass -> /usr/bin/grass
-
-Script directory: from the command line 'locate bin/d.title'
-should return the path to a file nested under the
-script-directory.
-
-e.g., on my machine 'locate bin/d.title' returns
-/usr/local/grass-7.0.0svn/bin/d.title, so I set the script
-directory to /usr/local/grass-7.0.0svn (trimming off /bin/d.title
-at the end).
-
-Note that if you have multiple versions of GRASS installed,
-you'll get more than one result here. If you have more than one
-version of GRASS, I'll assume you can sort out which one you
-need!
-
-HTML directory: from the command line, 'locate d.title.html'
-should return the path to a file in the HTML directory.
-
-e.g., on my machine, 'locate d.title.html' returns
-/usr/local/grass-7.0.0svn/docs/html, so I set the HTML directory
-to /usr/local/grass-7.0.0svn/docs
-
-Windows:
-
-I don't know. I need a knowledgable Windows user to help me out
-on this one."
+"
   :type 'grass-program-alist
   :group 'grass-mode
   :tag "Grass programs alist")
@@ -188,9 +167,10 @@ The file will be named for the current date."
 ;;;###autoload
 (defcustom grass-help-browser 'eww
   "Which browser to use to view GRASS help files.
-A symbol (not a string!): `external' for the external web browser called via browse-url;
-`eww' for the built-in Emacs eww web-browser;
-`w3m' for the w3m.el interface to w3m (must be installed separately)"
+A symbol (not a string!):
+`eww' for the built-in Emacs eww web-browser (default)
+`external' for the external web browser called via browse-url;
+ "
   :type 'symbol
   :group 'grass-mode)
 
@@ -214,7 +194,7 @@ A symbol (not a string!): `external' for the external web browser called via bro
   nil "The buffer where the grass help is found")
 
 (defvar grass-gisbase 
-  nil "The top-level directory containing bin and scripts directories")
+  nil "The top-level directory containing bin, scripts, and doc directories")
 
 (defvar grass-program 
   nil "The grass executable")
@@ -849,7 +829,7 @@ you might want to turn that off in grass-mode! (return to proceed)"))
     (setq grass-name (nth 0 grass-prog)
           grass-program (nth 1 grass-prog)
           grass-gisbase (nth 2 grass-prog)
-          grass-doc-dir (nth 3 grass-prog)))
+          grass-doc-dir (concat grass-gisbase "/docs/html/")))
 
   (message "grass name: %s" grass-name)
   
@@ -1100,15 +1080,6 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
   (cl-case grass-help-browser
     ('external
      (browse-url url))
-    ('w3m
-     (if (buffer-name grass-help) 
-         (if (get-buffer-window grass-help)
-             (select-window (get-buffer-window grass-help))
-           (switch-to-buffer-other-window grass-help))
-       (switch-to-buffer-other-window "*scratch*"))
-     (w3m-goto-url url)
-     (setq grass-help (current-buffer))
-     (grass-help-jump-mode))
     ('eww
      (if (and (one-window-p) (not (string-equal (buffer-name) "*eww*")))
          (split-window))
@@ -1118,6 +1089,14 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
      (add-hook 'eww-mode-hook 'grass-help-jump-mode)
      (eww url)
      (message "eww called"))))
+
+(defvar grass-help-jump-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "j") 'ghj-jump-to-help-index)
+    (define-key map (kbd "m") 'ghj-link-menu)
+    (define-key map (kbd "h") 'grass-view-help)
+    (define-key map (kbd "C-c C-v") 'grass-view-help)
+    map))
 
 (define-minor-mode grass-help-jump-mode
   "Toggle GRASS help jump mode.
@@ -1129,10 +1108,7 @@ page.
 "
   nil ;; initial value
   " GHJ" ;; indicator line
-  ;; keybindings:
-  '(((kbd "j") . grass-jump-to-help-index)
-    ((kbd "m") . ghj-link-menu)
-    ((kbd "h") . grass-view-help))
+  nil ;; keybindings
   (read-only-mode 1))
 
 (defun ghj-get-links ()
@@ -1170,32 +1146,12 @@ buffer."
      (t
       (eww-browse-url url)))))
 
-
-(defun grass-set-w3m-help (opt value)
-  (if (eq value t)
-      (if (not (require 'w3m nil t))
-          (message "w3m must be installed in order to use grass-help-w3m!")
-        (set-default opt value)
-        (define-key w3m-mode-map "j" 'grass-jump-to-help-index) 
-        (define-key w3m-mode-map "q" 'grass-close-w3m-window)
-        (define-key w3m-mode-map "\C-l" 'recenter-top-bottom)
-        (define-key w3m-ctl-c-map "\C-v" 'grass-view-help))
-    (set-default opt value)))
-
-;;; w3m customizations ;;;
-
-(defun grass-close-w3m-window ()
-  "If grass is running, switch to that window. If not, close w3m windows."
-  (interactive)
-  (if (and (processp grass-process)
-           (buffer-name (process-buffer grass-process)))
-      (switch-to-buffer (process-buffer grass-process))
-    (w3m-close-window)))
-
-(defun grass-jump-to-help-index (ind)
+(defun ghj-jump-to-help-index ()
   "Goto a specific grass help index"
-  (interactive "c")
-  (let ((dest 
+  (interactive)
+  (message "h: index  [v]ector  [r]aster  [d]isplay  data[b]ase  [g]eneral")
+  (let* ((ind (read-char))
+         (dest 
          (concat "file://" grass-doc-dir "/"
                  (cl-case ind
                    (?h "index.html")
