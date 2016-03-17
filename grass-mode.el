@@ -1055,6 +1055,8 @@ Based on Shell-script mode. Don't call this directly - use `sgrass' instead.
     (,(kbd "C-c C-r") . grass-send-region))
 ;;  (require 'cl)
 ;;  (load "cl-seq")
+  :lighter
+  "sgrass"
   (add-hook 'completion-at-point-functions 'sgrass-complete-commands nil t)
   (add-hook 'completion-at-point-functions 'grass-completion-at-point nil t)
   (if (boundp 'grass-mode-keywords)
