@@ -838,7 +838,7 @@ you might want to turn that off in grass-mode! (return to proceed)"))
                                 (if (string-match-p "html$" x)
                                     x))
                             (directory-files grass-doc-dir)))
-        grass-doc-table)
+        grass-doc-table nil)
 
   (mapc #'(lambda (x) 
             (push (cons (substring x 0 -5)
