@@ -807,7 +807,6 @@ already active. With a prefix force the creation of a new process."
 
   ;; initializations
   (setenv "GRASS_PAGER" "cat")
-  (setenv "GRASS_VERBOSE" "0")
 
   (when (and (boundp 'ido-ubiquitous-mode)
              (equal ido-ubiquitous-mode t)
