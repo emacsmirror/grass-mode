@@ -1,9 +1,9 @@
 ;;; grass-mode.el --- Provides Emacs modes for interacting with the GRASS GIS program
 
-;; Copyright (C) Tyler Smith 2013
+;; Copyright (C) Tyler Smith 2017
 
 ;; Author: Tyler Smith <tyler@plantarum.ca>
-;; Version: 0.3
+;; Version: 0.4
 ;; Package-Requires: ((cl-lib "0.2") (dash "2.8.0"))
 ;; Keywords: GRASS, GIS
 
@@ -279,7 +279,13 @@ and `grass-redo-completions'.")
           ("v.what.vect" "vector")) 
          grass-vector-maps)
         ((("db.columns" "table")) grass-all-maps))
-      "Modifications to the completion table, adding specialized look-up functions")
+      "Modifications to the completion table, adding specialized look-up functions.
+The automatic parsing pulls out all the static argument options. This
+function list indicates which arguments are provided by grass-mode
+functions. e.g., The `vector' argument of `v.what.vect' is provided by the
+function `grass-vector-maps'. I maintain this list by hand, as the same
+argument name (i.e., `input') means different things for different
+functions.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initialization functions ;;
