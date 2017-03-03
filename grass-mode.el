@@ -807,12 +807,13 @@ already active. With a prefix force the creation of a new process."
 
   ;; initializations
   (setenv "GRASS_PAGER" "cat")
-
-  (when (and (boundp 'ido-ubiquitous-mode)
-             (equal ido-ubiquitous-mode t)
-             (equal ido-ubiquitous-enable-old-style-default t))
-    (read-from-minibuffer "ido-ubiquitous-enable-old-style-default is t - \
-you might want to turn that off in grass-mode! (return to proceed)"))
+  ;; I think the following correction is no longer needed with ido-ubiquitous?
+  ;;   (when (and (boundp 'ido-ubiquitous-mode)
+  ;;              (equal ido-ubiquitous-mode t)
+  ;;              (equal ido-ubiquitous-enable-old-style-default t)
+  ;;              )
+  ;;     (read-from-minibuffer "ido-ubiquitous-enable-old-style-default is t - \
+  ;; you might want to turn that off in grass-mode! (return to proceed)"))
   (let ((grass-prog 
          (if (> (length grass-grass-programs-alist) 1)
              ;; NB: there are problems with the completion here if you use
