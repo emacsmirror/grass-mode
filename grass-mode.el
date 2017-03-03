@@ -380,12 +380,13 @@ list element for use in grass-commands. See grass-parse-command-list"
                                          help-file "\n")) 
             (while (and (< counter 5)
                         (< (nth 7 (file-attributes help-file)) 1))
-              ;; help-file is usually produced instantly, but OS-level issues may
-              ;; occasionally delay this. If the file is still empty, wait one second and
-              ;; then retry. Note that some commands do not support
-              ;; --interface-description. So after 5 times through this loop, help-file
-              ;; will still be empty, so we move on and ignore them.
-              (sleep-for 1)
+              ;; help-file is usually produced instantly, but OS-level
+              ;; issues may occasionally delay this. If the file is still
+              ;; empty, wait a half- second and then retry. Note that some
+              ;; commands do not support --interface-description. So after
+              ;; 5 times through this loop, help-file will still be empty,
+              ;; so we move on and ignore them.
+              (sleep-for 0.5)
               (cl-incf counter))
             (if (< counter 5)           ; counter is >= 5 only if help-file was never written
                 (with-temp-buffer 
